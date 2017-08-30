@@ -4,26 +4,13 @@
   "Description" : "Barebones Cloudformation",
   "Resources" : {
     "EC2Instance" : {
-      "Type" : "AWS::EC2::Instance",
+      "Type" : 
       "Properties" : {
-        "InstanceType" : "t2.small",
-        "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
-        "ImageId" : "ami-4fffc834"
-      }
-    },
-
-    "InstanceSecurityGroup" : {
-      "Type" : "AWS::EC2::SecurityGroup",
-      "Properties" : {
-        "GroupDescription" : "Enable SSH access via port 22",
-        "SecurityGroupIngress" : [ {
-          "IpProtocol" : "tcp",
-          "FromPort" : "22",
-          "ToPort" : "22",
-          "CidrIp" : "0.0.0.0/0"
-        } ]
+            SecurityGroups
+            InstanceType
+            ImageId
+            
       }
     }
-  },
-
+  }
 }
