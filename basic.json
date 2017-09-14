@@ -4,11 +4,11 @@
   "Description" : "Barebones Cloudformation",
   "Resources" : {
     "EC2Instance" : {
-      "Type" : 
+      "Type" : "AWS::EC2::Instance",
       "Properties" : {
-            SecurityGroups
-            InstanceType
-            ImageId
+          "SecurityGroups": "sg-8e5898e8",
+							"InstanceType": "t2.micro",
+							"ImageId": "ami-aa5ebdd2"
             
       }
     }
