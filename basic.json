@@ -1,8 +1,8 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
-
   "Description" : "Barebones Cloudformation",
-  "Resources" : {
+  
+ "Resources" : {
     "EC2Instance" : {
       "Type" : 
       "Properties" : {
