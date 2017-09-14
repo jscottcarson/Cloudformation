@@ -3,15 +3,15 @@
 		"Parameters": {
 
 		"InstanceType":{
-			"Description": "The subnet to launch the instance in to. It must be part of the VPC chosen above.",
+			"Description": "The instance type to launch.",
 			"Type": "String"
 			},
 		"SecurityGroup":{
-			"Description": "AWS VPC Environment Name",
+			"Description": "The security group you would like to attach",
 			"Type": 
 			},
 		"ImageId":{
-			"Description": "The subnet to launch the instance in to. It must be part of the VPC chosen above.",
+			"Description": "The AMI of the instance to launch. It must reside in the target region.",
 			"Type": "String"
 			}
 			
