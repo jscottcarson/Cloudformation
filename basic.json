@@ -4,12 +4,12 @@
   
  "Resources" : {
     "EC2Instance" : {
-      "Type" : 
+      "Type" : "AWS::EC2::Instance",
       "Properties" : {
-          "SecurityGroups":
-	  "InstanceType": 
-	  "ImageId": 
-            
+          "SecurityGroupsIds": ["sg-8e5898e8"],
+	  "InstanceType": "t2.micro",
+	  "ImageId": "ami-aa5ebdd2",
+          "SubnetId" : "subnet-b3c201eb" 
       }
     }
   }
