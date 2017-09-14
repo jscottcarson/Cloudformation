@@ -1,0 +1,35 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+		"Parameters": {
+
+		"InstanceType":
+			{
+				"Description": "The subnet to launch the instance in to. It must be part of the VPC chosen above.",
+				"Type": "String"
+			},
+		"SecurityGroup":
+			{
+				"Description": "AWS VPC Environment Name",
+				"Type": 
+			},
+		"ImageId":
+			{
+				"Description": "The subnet to launch the instance in to. It must be part of the VPC chosen above.",
+				"Type": "String"
+			}
+			
+		},
+		
+		"Description" : "Barebones Cloudformation",
+		"Resources" : {
+				"EC2Instance" : {
+					"Type" : "AWS::EC2::Instance",
+						"Properties" : {
+							"SecurityGroups": 
+							"InstanceType": 
+							"ImageId": 
+            
+					}
+				}
+			}
+		}
