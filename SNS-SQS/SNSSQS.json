@@ -1,0 +1,70 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "This template creates an SNS Topic, SQS QUE, and give the SNS topic rights to access SQS.",
+	"Resources": {
+		"SQSQue": {
+			"Type": "AWS::SQS::Queue",
+			"Properties": {
+				"QueueName": "Que",
+				"VisibilityTimeout": "60"
+			}
+		},
+		"SNSTopic": {
+			"Type": "AWS::SNS::Topic",
+			"Properties": {
+				"Subscription": [
+					{
+						"Endpoint": {
+							"Fn::GetAtt": [
+								"SQSQue",
+								"Arn"
+							]
+						},
+						"Protocol": "sqs"
+					}
+				],
+				"TopicName": "SNS"
+			}
+		},
+		"QueuePolicy": {
+			"Type": "AWS::SQS::QueuePolicy",
+			"Properties": {
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Id": "QueuePolicy",
+					"Statement": [
+						{
+							"Sid": "Allow-SendMessage-To-Both-Queues-From-SNS-Topic",
+							"Effect": "Allow",
+							"Principal": "*",
+							"Action": [
+								"sqs:SendMessage"
+							],
+							"Resource": "*",
+							"Condition": {
+								"ArnEquals": {
+									"aws:SourceArn": {
+										"Ref": "SNSTopic"
+									}
+								}
+							}
+						}
+					]
+				},
+				"Queues": [
+					{
+						"Ref": "SQSQue"
+					}
+				]
+			}
+		}
+	},
+	"Outputs": {
+		"QueueURL": {
+			"Description": "URL of newly created SQS Queue",
+			"Value": {
+				"Ref": "SQSQue"
+			}
+		}
+	}
+}
