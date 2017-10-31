@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
-  "Description" : "Barebones Cloudformation",
+  "Description" : "Barebones Cloudformation no parameters",
   
  "Resources" : {
     "EC2Instance" : {
@@ -14,3 +14,5 @@
     }
   }
 }
+
+
