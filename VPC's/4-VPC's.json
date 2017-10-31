@@ -1,0 +1,1953 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Creates a Management & Security, Development, Staging, and Production VPC that each contain a public, app, DB, utility subnets. Additionally, adds a VPC Peering Connection between each VPC. Also creates an S3 bucket for account Clouddtrail logging and a Cloudtrail log. ",
+	"Parameters": {
+		"DevVPCBaseRange": {
+			"Description": "Enter first two numbers of the CIDR Block Range. Example 10.48",
+			"Type": "String",
+			"Default": "12.0",
+			"MinLength": "3",
+			"MaxLength": "7",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})",
+			"ConstraintDescription": "Must be valid IP CIDR range of the form x.x"
+		},
+		"DevVPCEndingRange": {
+			"Description": "Enter the last numbers of the CIDR Block Range. Example 200.0/22",
+			"Type": "String",
+			"Default": "0.0",
+			"MinLength": "3",
+			"MaxLength": "7",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})",
+			"ConstraintDescription": "Must be a valid IP CIDR range of the form x.x/x"
+		},
+		"QAVPCBaseRange": {
+			"Description": "Enter first two numbers of the CIDR Block Range. Example 10.48",
+			"Type": "String",
+			"Default": "172.0",
+			"MinLength": "3",
+			"MaxLength": "7",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})",
+			"ConstraintDescription": "Must be valid IP CIDR range of the form x.x"
+		},
+		"QAVPCEndingRange": {
+			"Description": "Enter the last numbers of the CIDR Block Range. Example 200.0/22",
+			"Type": "String",
+			"Default": "0.0",
+			"MinLength": "3",
+			"MaxLength": "7",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})",
+			"ConstraintDescription": "Must be a valid IP CIDR range of the form x.x/x"
+		},
+		"ProdVPCBaseRange": {
+			"Description": "Enter first two numbers of the CIDR Block Range. Example 10.48",
+			"Type": "String",
+			"Default": "192.0",
+			"MinLength": "3",
+			"MaxLength": "7",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})",
+			"ConstraintDescription": "Must be valid IP CIDR range of the form x.x"
+		},
+		"ProdVPCEndingRange": {
+			"Description": "Enter the last numbers of the CIDR Block Range. Example 200.0/22",
+			"Type": "String",
+			"Default": "0.0",
+			"MinLength": "3",
+			"MaxLength": "7",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})",
+			"ConstraintDescription": "Must be a valid IP CIDR range of the form x.x/x"
+		},
+		"MSVPCBaseRange": {
+			"Description": "Enter first two numbers of the CIDR Block Range. Example 10.48",
+			"Type": "String",
+			"Default": "215.0",
+			"MinLength": "3",
+			"MaxLength": "7",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})",
+			"ConstraintDescription": "Must be valid IP CIDR range of the form x.x"
+		},
+		"MSVPCEndingRange": {
+			"Description": "Enter the last numbers of the CIDR Block Range. Example 200.0/22",
+			"Type": "String",
+			"Default": "0.0",
+			"MinLength": "3",
+			"MaxLength": "7",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})",
+			"ConstraintDescription": "Must be a valid IP CIDR range of the form x.x/x"
+		}
+	},
+	"Resources": {
+		"MSFlowLogRole": {
+			"Type": "AWS::IAM::Role",
+			"DependsOn": "MSFlowLogsGroup",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [
+								"vpc-flow-logs.amazonaws.com"
+							]
+						},
+						"Action": [
+							"sts:AssumeRole"
+						]
+					}]
+				},
+				"Path": "/",
+				"Policies": [{
+					"PolicyName": "root",
+					"PolicyDocument": {
+						"Version": "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": [
+								"logs:CreateLogGroup",
+								"logs:CreateLogStream",
+								"logs:PutLogEvents",
+								"logs:DescribeLogGroups",
+								"logs:DescribeLogStreams"
+							],
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+		"MSFlowLogsGroup": {
+			"Type": "AWS::Logs::LogGroup",
+			"Properties": {
+				"RetentionInDays": "7"
+			}
+		},
+		"MSVPC": {
+			"Type": "AWS::EC2::VPC",
+			"Properties": {
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "MSVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": " MS VPC"
+					},
+					{
+						"Key": "Role",
+						"Value": "MS"
+					}
+				]
+			}
+		},
+		"MSVPCFlowLog": {
+			"Type": "AWS::EC2::FlowLog",
+			"DependsOn": "MSFlowLogRole",
+			"Properties": {
+				"DeliverLogsPermissionArn": {
+					"Fn::GetAtt": [
+						"MSFlowLogRole",
+						"Arn"
+					]
+				},
+				"LogGroupName": {
+					"Ref": "MSFlowLogsGroup"
+				},
+				"ResourceId": {
+					"Ref": "MSVPC"
+				},
+				"ResourceType": "VPC",
+				"TrafficType": "ALL"
+			}
+		},
+		"MSPrivRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "MSVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "MSVPC"
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "MS Private Route Table"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private Internal Traffic"
+					}
+				]
+			}
+		},
+		"MSExternalRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "MSVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "MSVPC"
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "MS Public Route Table"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public Traffic"
+					}
+				]
+			}
+		},
+		"PubMSSubnetA": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "MSVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"a"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "MSVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".16.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "MS-Public-A"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"AttachPubMSSubnet": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PubMSSubnetA",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "MSExternalRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "PubMSSubnetA"
+				}
+			}
+		},
+		"PubMSSubnetB": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "PubMSSubnetA",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"b"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "MSVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".24.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "MS-Public-B"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"AttachPubMSSubnetB": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PubMSSubnetB",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "MSExternalRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "PubMSSubnetB"
+				}
+			}
+		},
+		"MSPrivSubnetA": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "MSVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"a"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "MSVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".0.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "MS-Priv-A"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"AttachPrivMSSubnetA": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "MSPrivSubnetA",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "MSPrivRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "MSPrivSubnetA"
+				}
+			}
+		},
+		"MSPrivSubnetB": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "MSVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"b"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "MSVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".8.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "MS-Priv-B"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"AttachPrivMSSubnetB": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "MSPrivSubnetB",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "MSPrivRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "MSPrivSubnetB"
+				}
+			}
+		},
+		"MSVPCIGW": {
+			"Type": "AWS::EC2::InternetGateway",
+			"Properties": {
+				"Tags": [{
+					"Key": "Name",
+					"Value": "MSVPC-IGW"
+				}]
+			}
+		},
+		"AttachMSIGW": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"DependsOn": "MSVPCIGW",
+			"Properties": {
+				"InternetGatewayId": {
+					"Ref": "MSVPCIGW"
+				},
+				"VpcId": {
+					"Ref": "MSVPC"
+				}
+			}
+		},
+
+
+
+
+
+		"DevFlowLogRole": {
+			"Type": "AWS::IAM::Role",
+			"DependsOn": "DevFlowLogsGroup",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [
+								"vpc-flow-logs.amazonaws.com"
+							]
+						},
+						"Action": [
+							"sts:AssumeRole"
+						]
+					}]
+				},
+				"Path": "/",
+				"Policies": [{
+					"PolicyName": "root",
+					"PolicyDocument": {
+						"Version": "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": [
+								"logs:CreateLogGroup",
+								"logs:CreateLogStream",
+								"logs:PutLogEvents",
+								"logs:DescribeLogGroups",
+								"logs:DescribeLogStreams"
+							],
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+		"DevFlowLogsGroup": {
+			"Type": "AWS::Logs::LogGroup",
+			"Properties": {
+				"RetentionInDays": "7"
+			}
+		},
+		"DevelopmentVPC": {
+			"Type": "AWS::EC2::VPC",
+			"Properties": {
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "DevVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "DevVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": " Development VPC"
+					},
+					{
+						"Key": "Role",
+						"Value": "Development"
+					}
+				]
+			}
+		},
+		"DevVPCFlowLog": {
+			"Type": "AWS::EC2::FlowLog",
+			"DependsOn": "DevFlowLogRole",
+			"Properties": {
+				"DeliverLogsPermissionArn": {
+					"Fn::GetAtt": [
+						"DevFlowLogRole",
+						"Arn"
+					]
+				},
+				"LogGroupName": {
+					"Ref": "DevFlowLogsGroup"
+				},
+				"ResourceId": {
+					"Ref": "DevelopmentVPC"
+				},
+				"ResourceType": "VPC",
+				"TrafficType": "ALL"
+			}
+		},
+		"DevDefaultSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Dev_Default_SG",
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				},
+				"SecurityGroupIngress": [{
+					"IpProtocol": "tcp",
+					"FromPort": "22",
+					"ToPort": "22",
+					"CidrIp": {
+						"Fn::Join": [
+							"", [{
+									"Ref": "MSVPCBaseRange"
+								},
+								".0.0/19"
+							]
+						]
+					}
+				}],
+				"SecurityGroupEgress": [{
+					"IpProtocol": "tcp",
+					"FromPort": "22",
+					"ToPort": "22",
+					"CidrIp": "0.0.0.0/0"
+				}]
+			}
+		},
+		"DevelopmentPrivRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "DevelopmentVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Dev Private Route Table"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private Internal Traffic"
+					}
+				]
+			}
+		},
+		"DevPeeringConnection": {
+			"Type": "AWS::EC2::VPCPeeringConnection",
+			"Properties": {
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				},
+				"PeerVpcId": {
+					"Ref": "MSVPC"
+				},
+				"Tags": [{
+					"Key": "Name",
+					"Value": " Dev Peer to M&S"
+				}]
+			}
+		},
+		"DevPrivPeeringRoute": {
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"DestinationCidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "MSVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"RouteTableId": {
+					"Ref": "DevelopmentPrivRouteTable"
+				},
+				"VpcPeeringConnectionId": {
+					"Ref": "DevPeeringConnection"
+				}
+			}
+		},
+		"DevelopmentExternalRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "DevelopmentVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Development Public Route Table"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public Traffic"
+					}
+				]
+			}
+		},
+		"DevExtPeeringRoute": {
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"DestinationCidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "MSVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"RouteTableId": {
+					"Ref": "DevelopmentExternalRouteTable"
+				},
+				"VpcPeeringConnectionId": {
+					"Ref": "DevPeeringConnection"
+				}
+			}
+		},
+		"PubDevSubnetA": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "DevelopmentVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"a"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "DevVPCBaseRange"
+							},
+							".16.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Development-Public-A"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"AttachPubDevSubnetA": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PubDevSubnetA",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "DevelopmentExternalRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "PubDevSubnetA"
+				}
+			}
+		},
+		"PubDevSubnetB": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "DevelopmentVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"b"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "DevVPCBaseRange"
+							},
+							".24.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Development-Public-B"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"AttachPubDevSubnetB": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PubDevSubnetB",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "DevelopmentExternalRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "PubDevSubnetB"
+				}
+			}
+		},
+		"DevPrivSubnetA": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "DevelopmentVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"a"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "DevVPCBaseRange"
+							},
+							".0.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Development-Priv-A"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"AttachPrivDevSubnetA": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "DevPrivSubnetA",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "DevelopmentPrivRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "DevPrivSubnetA"
+				}
+			}
+		},
+		"DevPrivSubnetB": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "DevelopmentVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"b"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "DevVPCBaseRange"
+							},
+							".8.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Development-Priv-B"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"AttachPrivDevSubnetB": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "DevPrivSubnetB",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "DevelopmentPrivRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "DevPrivSubnetB"
+				}
+			}
+		},
+		"DevVPCIGW": {
+			"Type": "AWS::EC2::InternetGateway",
+			"Properties": {
+				"Tags": [{
+					"Key": "Name",
+					"Value": "DevVPC-IGW"
+				}]
+			}
+		},
+		"AttachDevIGW": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"DependsOn": "DevVPCIGW",
+			"Properties": {
+				"InternetGatewayId": {
+					"Ref": "DevVPCIGW"
+				},
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				}
+			}
+		},
+		"DevNatGatewayEIPA": {
+			"Type": "AWS::EC2::EIP",
+			"Properties": {
+				"Domain": {
+					"Ref": "DevelopmentVPC"
+				}
+			}
+		},
+		"DevNatGatewayA": {
+			"Type": "AWS::EC2::NatGateway",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PubDevSubnetA"
+				},
+				"AllocationId": {
+					"Fn::GetAtt": [
+						"DevNatGatewayEIPA",
+						"AllocationId"
+					]
+				}
+			}
+		},
+		"DevS3VPCEndpoint": {
+			"Type": "AWS::EC2::VPCEndpoint",
+			"Properties": {
+				"RouteTableIds": [{
+					"Ref": "DevelopmentPrivRouteTable"
+				}],
+				"ServiceName": {
+					"Fn::Join": [
+						"", [
+							"com.amazonaws.",
+							{
+								"Ref": "AWS::Region"
+							},
+							".s3"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "DevelopmentVPC"
+				}
+			}
+		},
+
+
+
+
+
+		"QAFlowLogRole": {
+			"Type": "AWS::IAM::Role",
+			"DependsOn": "QAFlowLogsGroup",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [
+								"vpc-flow-logs.amazonaws.com"
+							]
+						},
+						"Action": [
+							"sts:AssumeRole"
+						]
+					}]
+				},
+				"Path": "/",
+				"Policies": [{
+					"PolicyName": "root",
+					"PolicyDocument": {
+						"Version": "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": [
+								"logs:CreateLogGroup",
+								"logs:CreateLogStream",
+								"logs:PutLogEvents",
+								"logs:DescribeLogGroups",
+								"logs:DescribeLogStreams"
+							],
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+		"QAFlowLogsGroup": {
+			"Type": "AWS::Logs::LogGroup",
+			"Properties": {
+				"RetentionInDays": "7"
+			}
+		},
+		"QAVPC": {
+			"Type": "AWS::EC2::VPC",
+			"Properties": {
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "QAVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "QAVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "QA VPC"
+					},
+					{
+						"Key": "Role",
+						"Value": "QA"
+					}
+				]
+			}
+		},
+		"QAVPCFlowLog": {
+			"Type": "AWS::EC2::FlowLog",
+			"DependsOn": "QAFlowLogRole",
+			"Properties": {
+				"DeliverLogsPermissionArn": {
+					"Fn::GetAtt": [
+						"QAFlowLogRole",
+						"Arn"
+					]
+				},
+				"LogGroupName": {
+					"Ref": "QAFlowLogsGroup"
+				},
+				"ResourceId": {
+					"Ref": "QAVPC"
+				},
+				"ResourceType": "VPC",
+				"TrafficType": "ALL"
+			}
+		},
+		"QADefaultSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "QA_Default_SG",
+				"VpcId": {
+					"Ref": "QAVPC"
+				},
+				"SecurityGroupIngress": [{
+					"IpProtocol": "tcp",
+					"FromPort": "22",
+					"ToPort": "22",
+					"CidrIp": {
+						"Fn::Join": [
+							"", [{
+									"Ref": "MSVPCBaseRange"
+								},
+								".0.0/19"
+							]
+						]
+					}
+				}],
+				"SecurityGroupEgress": [{
+					"IpProtocol": "tcp",
+					"FromPort": "22",
+					"ToPort": "22",
+					"CidrIp": "0.0.0.0/0"
+				}]
+			}
+		},
+		"QAPrivRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "QAVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "QAVPC"
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "QA Private Route Table"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private Internal Traffic"
+					}
+				]
+			}
+		},
+		"QAPeeringConnection": {
+			"Type": "AWS::EC2::VPCPeeringConnection",
+			"Properties": {
+				"VpcId": {
+					"Ref": "QAVPC"
+				},
+				"PeerVpcId": {
+					"Ref": "MSVPC"
+				},
+				"Tags": [{
+					"Key": "Name",
+					"Value": " QA Peer to M&S"
+				}]
+			}
+		},
+		"QAPrivPeeringRoute": {
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"DestinationCidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "MSVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"RouteTableId": {
+					"Ref": "QAPrivRouteTable"
+				},
+				"VpcPeeringConnectionId": {
+					"Ref": "QAPeeringConnection"
+				}
+			}
+		},
+		"QAExternalRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "QAVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "QAVPC"
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "QA Public Route Table"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public Traffic"
+					}
+				]
+			}
+		},
+		"QAExtPeeringRoute": {
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"DestinationCidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "MSVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"RouteTableId": {
+					"Ref": "QAExternalRouteTable"
+				},
+				"VpcPeeringConnectionId": {
+					"Ref": "QAPeeringConnection"
+				}
+			}
+		},
+		"PubQASubnetA": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "QAVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"a"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "QAVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "QAVPCBaseRange"
+							},
+							".16.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "QA-Public-A"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"AttachPubQASubnetA": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PubQASubnetA",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "QAExternalRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "PubQASubnetA"
+				}
+			}
+		},
+		"PubQASubnetB": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "QAVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"b"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "QAVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "QAVPCBaseRange"
+							},
+							".24.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "QA-Public-B"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"AttachPubQASubnetB": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PubQASubnetB",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "QAExternalRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "PubQASubnetB"
+				}
+			}
+		},
+		"QAPrivSubnetA": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "QAVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"a"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "QAVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "QAVPCBaseRange"
+							},
+							".0.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "QA-Priv-A"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"AttachPrivQASubnetA": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "QAPrivSubnetA",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "QAPrivRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "QAPrivSubnetA"
+				}
+			}
+		},
+		"QAPrivSubnetB": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "QAVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"b"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "QAVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "QAVPCBaseRange"
+							},
+							".8.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "QA-Priv-B"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"AttachPrivQASubnetB": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "QAPrivSubnetB",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "QAPrivRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "QAPrivSubnetB"
+				}
+			}
+		},
+		"QAVPCIGW": {
+			"Type": "AWS::EC2::InternetGateway",
+			"Properties": {
+				"Tags": [{
+					"Key": "Name",
+					"Value": "QAVPC-IGW"
+				}]
+			}
+		},
+		"AttachQAIGW": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"DependsOn": "QAVPCIGW",
+			"Properties": {
+				"InternetGatewayId": {
+					"Ref": "QAVPCIGW"
+				},
+				"VpcId": {
+					"Ref": "QAVPC"
+				}
+			}
+		},
+		"QANatGatewayEIPA": {
+			"Type": "AWS::EC2::EIP",
+			"Properties": {
+				"Domain": {
+					"Ref": "QAVPC"
+				}
+			}
+		},
+		"QANatGatewayA": {
+			"Type": "AWS::EC2::NatGateway",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PubQASubnetA"
+				},
+				"AllocationId": {
+					"Fn::GetAtt": [
+						"QANatGatewayEIPA",
+						"AllocationId"
+					]
+				}
+			}
+		},
+		"QAS3VPCEndpoint": {
+			"Type": "AWS::EC2::VPCEndpoint",
+			"Properties": {
+				"RouteTableIds": [{
+					"Ref": "QAPrivRouteTable"
+				}],
+				"ServiceName": {
+					"Fn::Join": [
+						"", [
+							"com.amazonaws.",
+							{
+								"Ref": "AWS::Region"
+							},
+							".s3"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "QAVPC"
+				}
+			}
+		},
+
+
+
+
+		"ProdFlowLogRole": {
+			"Type": "AWS::IAM::Role",
+			"DependsOn": "ProdFlowLogsGroup",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [
+								"vpc-flow-logs.amazonaws.com"
+							]
+						},
+						"Action": [
+							"sts:AssumeRole"
+						]
+					}]
+				},
+				"Path": "/",
+				"Policies": [{
+					"PolicyName": "root",
+					"PolicyDocument": {
+						"Version": "2012-10-17",
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": [
+								"logs:CreateLogGroup",
+								"logs:CreateLogStream",
+								"logs:PutLogEvents",
+								"logs:DescribeLogGroups",
+								"logs:DescribeLogStreams"
+							],
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+		"ProdFlowLogsGroup": {
+			"Type": "AWS::Logs::LogGroup",
+			"Properties": {
+				"RetentionInDays": "7"
+			}
+		},
+		"ProdVPC": {
+			"Type": "AWS::EC2::VPC",
+			"Properties": {
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "ProdVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "ProdVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Prod VPC"
+					},
+					{
+						"Key": "Role",
+						"Value": "Prod"
+					}
+				]
+			}
+		},
+		"ProdVPCFlowLog": {
+			"Type": "AWS::EC2::FlowLog",
+			"DependsOn": "ProdFlowLogRole",
+			"Properties": {
+				"DeliverLogsPermissionArn": {
+					"Fn::GetAtt": [
+						"ProdFlowLogRole",
+						"Arn"
+					]
+				},
+				"LogGroupName": {
+					"Ref": "ProdFlowLogsGroup"
+				},
+				"ResourceId": {
+					"Ref": "ProdVPC"
+				},
+				"ResourceType": "VPC",
+				"TrafficType": "ALL"
+			}
+		},
+		"ProdDefaultSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Prod_Default_SG",
+				"VpcId": {
+					"Ref": "ProdVPC"
+				},
+				"SecurityGroupIngress": [{
+					"IpProtocol": "tcp",
+					"FromPort": "22",
+					"ToPort": "22",
+					"CidrIp": {
+						"Fn::Join": [
+							"", [{
+									"Ref": "MSVPCBaseRange"
+								},
+								".0.0/19"
+							]
+						]
+					}
+				}],
+				"SecurityGroupEgress": [{
+					"IpProtocol": "tcp",
+					"FromPort": "22",
+					"ToPort": "22",
+					"CidrIp": "0.0.0.0/0"
+				}]
+			}
+		},
+		"ProdPrivRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "ProdVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "ProdVPC"
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Prod Private Route Table"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private Internal Traffic"
+					}
+				]
+			}
+		},
+		"ProdPeeringConnection": {
+			"Type": "AWS::EC2::VPCPeeringConnection",
+			"Properties": {
+				"VpcId": {
+					"Ref": "ProdVPC"
+				},
+				"PeerVpcId": {
+					"Ref": "MSVPC"
+				},
+				"Tags": [{
+					"Key": "Name",
+					"Value": " Prod Peer to M&S"
+				}]
+			}
+		},
+		"ProdPrivPeeringRoute": {
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"DestinationCidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "MSVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"RouteTableId": {
+					"Ref": "ProdPrivRouteTable"
+				},
+				"VpcPeeringConnectionId": {
+					"Ref": "ProdPeeringConnection"
+				}
+			}
+		},
+		"ProdExternalRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "ProdVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "ProdVPC"
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Prod Public Route Table"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public Traffic"
+					}
+				]
+			}
+		},
+		"ProdExtPeeringRoute": {
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"DestinationCidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "MSVPCBaseRange"
+							},
+							".",
+							{
+								"Ref": "MSVPCEndingRange"
+							},
+							"/19"
+						]
+					]
+				},
+				"RouteTableId": {
+					"Ref": "ProdExternalRouteTable"
+				},
+				"VpcPeeringConnectionId": {
+					"Ref": "ProdPeeringConnection"
+				}
+			}
+		},
+		"PubProdSubnetA": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "ProdVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"a"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "ProdVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "ProdVPCBaseRange"
+							},
+							".16.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Prod-Public-A"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"AttachPubProdSubnetA": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PubProdSubnetA",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "ProdExternalRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "PubProdSubnetA"
+				}
+			}
+		},
+		"PubProdSubnetB": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "ProdVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"b"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "ProdVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "ProdVPCBaseRange"
+							},
+							".24.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Prod-Public-B"
+					},
+					{
+						"Key": "Role",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"AttachPubProdSubnetB": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PubProdSubnetB",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "ProdExternalRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "PubProdSubnetB"
+				}
+			}
+		},
+		"ProdPrivSubnetA": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "ProdVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"a"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "ProdVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "ProdVPCBaseRange"
+							},
+							".0.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Prod-Priv-A"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"AttachPrivProdSubnetA": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "ProdPrivSubnetA",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "ProdPrivRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "ProdPrivSubnetA"
+				}
+			}
+		},
+		"ProdPrivSubnetB": {
+			"Type": "AWS::EC2::Subnet",
+			"DependsOn": "ProdVPC",
+			"Properties": {
+				"AvailabilityZone": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "AWS::Region"
+							},
+							"b"
+						]
+					]
+				},
+				"VpcId": {
+					"Ref": "ProdVPC"
+				},
+				"CidrBlock": {
+					"Fn::Join": [
+						"", [{
+								"Ref": "ProdVPCBaseRange"
+							},
+							".8.1/21"
+						]
+					]
+				},
+				"Tags": [{
+						"Key": "Name",
+						"Value": "Prod-Priv-B"
+					},
+					{
+						"Key": "Role",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"AttachPrivProdSubnetB": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "ProdPrivSubnetB",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "ProdPrivRouteTable"
+				},
+				"SubnetId": {
+					"Ref": "ProdPrivSubnetB"
+				}
+			}
+		},
+		"ProdVPCIGW": {
+			"Type": "AWS::EC2::InternetGateway",
+			"Properties": {
+				"Tags": [{
+					"Key": "Name",
+					"Value": "ProdVPC-IGW"
+				}]
+			}
+		},
+		"AttachProdIGW": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"DependsOn": "ProdVPCIGW",
+			"Properties": {
+				"InternetGatewayId": {
+					"Ref": "ProdVPCIGW"
+				},
+				"VpcId": {
+					"Ref": "ProdVPC"
+				}
+			}
+		},
+		"ProdNatGatewayEIPA": {
+			"Type": "AWS::EC2::EIP",
+			"Properties": {
+				"Domain": {
+					"Ref": "ProdVPC"
+				}
+			}
+		},
+		"ProdNatGatewayA": {
+			"Type": "AWS::EC2::NatGateway",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PubProdSubnetA"
+				},
+				"AllocationId": {
+					"Fn::GetAtt": [
+						"ProdNatGatewayEIPA",
+						"AllocationId"
+					]
+				}
+			}
+		},
+		"ProdS3VPCEndpoint": {
+			"Type": "AWS::EC2::VPCEndpoint",
+			"Properties": {
+				"RouteTableIds": [{
+					"Ref": "ProdPrivRouteTable"
+				}],
+				"ServiceName": {
+					"Fn::Join": ["", ["com.amazonaws.", {
+						"Ref": "AWS::Region"
+					}, ".s3"]]
+				},
+				"VpcId": {
+					"Ref": "ProdVPC"
+				}
+			}
+		},
+
+
+		"CTS3Bucket": {
+			"DeletionPolicy": "Retain",
+			"Type": "AWS::S3::Bucket",
+			"Properties": {
+                "BucketName" : "cloudtrail-logs-bucket"
+            }
+		},
+		"BucketPolicy": {
+			"Type": "AWS::S3::BucketPolicy",
+			"Properties": {
+				"Bucket": {
+					"Ref": "CTS3Bucket"
+				},
+				"PolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [{
+							"Sid": "AWSCloudTrailAclCheck",
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "cloudtrail.amazonaws.com"
+							},
+							"Action": "s3:GetBucketAcl",
+							"Resource": {
+								"Fn::Join": ["", ["arn:aws:s3:::", {
+									"Ref": "CTS3Bucket"
+								}]]
+							}
+						},
+						{
+							"Sid": "AWSCloudTrailWrite",
+							"Effect": "Allow",
+							"Principal": {
+								"Service": "cloudtrail.amazonaws.com"
+							},
+							"Action": "s3:PutObject",
+							"Resource": {
+								"Fn::Join": ["", ["arn:aws:s3:::", {
+									"Ref": "CTS3Bucket"
+								}, "/AWSLogs/", {
+									"Ref": "AWS::AccountId"
+								}, "/*"]]
+							},
+							"Condition": {
+								"StringEquals": {
+									"s3:x-amz-acl": "bucket-owner-full-control"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+
+		"myTrail": {
+			"DependsOn": ["BucketPolicy"],
+			"Type": "AWS::CloudTrail::Trail",
+			"Properties": {
+				"S3BucketName": {
+					"Ref": "CTS3Bucket"
+				},
+				"IsLogging": true
+			}
+		}
+	},
+"Outputs": {
+	"MSVPCId" : {
+		"Description" : "MS VPC ID",
+		"Value" :  { "Ref" : "MSVPC" },
+		"Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-MSVPCID" }}
+	  },
+	"DevelopmentVPCId" : {
+		"Description" : "Dev VPC ID",
+		"Value" :  { "Ref" : "DevelopmentVPC" },
+		"Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-DevVPCID" }}
+	  }, 
+	"QAVPCId" : {
+		"Description" : "QA VPC ID",
+		"Value" :  { "Ref" : "QAVPC" },
+		"Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-QAVPCID" }}
+	  },    
+	  "ProdVPCId" : {
+		"Description" : "Prod VPC ID",
+		"Value" :  { "Ref" : "ProdVPC" },
+		"Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-ProdVPCID" }}
+	  },    
+      "BastionPublicSubnet" : {
+		"Description" : "The subnet ID to use for Bastion Hosts",
+		"Value" :  { "Ref" : "PubMSSubnetA" },
+		"Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-BastionSubnetID" }}
+	  },    
+      "EC2PrivateSubnet" : {
+		"Description" : "The subnet ID to use for Bastion Hosts",
+		"Value" :  { "Ref" : "DevPrivSubnetA" },
+		"Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-EC2SubnetID" }}
+	  }
+}
+}
