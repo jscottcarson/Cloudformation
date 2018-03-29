@@ -1,0 +1,184 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Windows server from an autoscaling group and launch configuration into the M&S private Subnet in Availability Zone A from a pre-configured AMI Image ID.",
+    "Parameters": {
+        "vpcs" : {
+            "Type" : "String"
+        },
+        "WindowsImageId": {
+            "Description": "Enter the Image ID of an existing AMI containing the Windows host configuration you want to launch",
+            "Type": "String"
+        },
+        "WindowsEC2SSHKeys":{
+            "Description": "Enter the key pair you'd like to attach to the Windows servers. It must be an existing key pair in the environment",
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "WinLoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "DependsOn": "WinLoadBalancerSecurityGroup",
+            "Properties": {
+                "Subnets": [
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSPrivSubnetAID"]]}},
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSPrivSubnetBID"]]}}
+                ],
+                "Listeners": [
+                    {
+                        "LoadBalancerPort": "80",
+                        "InstancePort": "80",
+                        "Protocol": "HTTP"
+                    }
+                ],
+                "HealthCheck": {
+                    "Target": "HTTPS:443/csra/ws/OutboundMessageIvaFile.wsdl",
+                    "HealthyThreshold": "3",
+                    "UnhealthyThreshold": "5",
+                    "Interval": "30",
+                    "Timeout": "5"
+                }
+            }
+        },
+        "Windowslaunch": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "DependsOn": "ec2WindowsSecurityGroup",
+            "Properties": {
+                "ImageId": {
+                    "Ref": "WindowsImageId"
+                },
+                "KeyName": {"Ref": "WindowsEC2SSHKeys"},
+                "InstanceType": "m4.large",
+                "InstanceMonitoring": "false",
+                "SecurityGroups": [
+                    {
+                        "Ref": "ec2WindowsSecurityGroup"
+                    }
+                ]
+            }
+        },
+        "Windowsgroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "DependsOn": "WinLoadBalancer",
+            "Properties": {
+                "Cooldown": "120",
+                "DesiredCapacity": "1",
+                "MaxSize": "2",
+                "MinSize": "1",
+                "HealthCheckGracePeriod": "180",
+                "LaunchConfigurationName": {
+                    "Ref": "Windowslaunch"
+                },
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "WinLoadBalancer"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Stack",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        },
+                        "PropagateAtLaunch": true
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "Windows Server",
+                        "PropagateAtLaunch": true
+                    }
+                ],
+                "VPCZoneIdentifier" : [
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSPrivSubnetAID"]]}},
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSPrivSubnetBID"]]}}
+                ]
+            }
+        },
+        "ec2WindowsSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Security group for our Windows instance.",
+                "VpcId":  {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSVPCID"]]}},
+                "Tags": [
+                    {
+                        "Key": "Stack",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        }
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "WindowsSG"
+                    }
+                ],
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "Description" : "From Bastion Host SG",
+                        "SourceSecurityGroupId":   {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-BastionSG"]]}}
+                   },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "443",
+                        "ToPort": "443",
+                        "Description" : "From Windows LB SG",
+                        "SourceSecurityGroupId":  {"Ref": "WinLoadBalancerSecurityGroup"}
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8443",
+                        "ToPort": "8443",
+                        "Description" : "From Windows LB SG",
+                        "SourceSecurityGroupId":  {"Ref": "WinLoadBalancerSecurityGroup"}
+                    }
+                
+                ]
+        }},
+        "WinLoadBalancerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Windows Load Balancer Security Group",
+                "VpcId":  {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSVPCID"]]}},
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "443",
+                        "ToPort": "443",
+                        "Description" : "Open to the Internet",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8443",
+                        "ToPort": "8443",
+                        "Description" : "Open to the Internet",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+        "WindowsSecurityGroup": {
+            "Description": "The Windows Host Security Group ID created in the Windows template",
+            "Value": {
+                "Ref": "ec2WindowsSecurityGroup"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-WindowsSecurityGroup"
+                }
+            }
+        },
+        "StackName": {
+			"Description": "The Windows stack name",
+			"Value": {"Ref": "AWS::StackName"},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "WindowsStack"
+				}
+			}
+        }
+    }
+}

@@ -1,0 +1,191 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Prod server from an autoscaling group and launch configuration into the Prod VPC Public Subnet in Availability Zone A from a pre-configured AMI Image ID.",
+    "Parameters": {
+        "vpcs" : {
+            "Type" : "String"
+        },
+        "ProdImageId": {
+            "Description": "Enter the Image ID of an existing AMI containing the Prod host configuration you want to launch",
+            "Type": "String"
+        },
+        "ProdEC2SSHKeys":{
+            "Description": "Enter the key pair you'd like to attach to the production servers. It must be an existing key pair in the environment",
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "ProdLoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "DependsOn": "ProdLoadBalancerSecurityGroup",
+            "Properties": {
+                "Subnets": [
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdPrivSubnetAID"]]}},
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdPrivSubnetBID"]]}}
+                ],
+                "Listeners": [
+                    {
+                        "LoadBalancerPort": "80",
+                        "InstancePort": "80",
+                        "Protocol": "HTTP"
+                    }
+                ],
+                "HealthCheck": {
+                    "Target": "HTTPS:443/csra/ws/OutboundMessageIvaFile.wsdl",
+                    "HealthyThreshold": "3",
+                    "UnhealthyThreshold": "5",
+                    "Interval": "30",
+                    "Timeout": "5"
+                }
+            }
+        },
+        "Prodlaunch": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "DependsOn": "ec2ProdSecurityGroup",
+            "Properties": {
+                "ImageId": {
+                    "Ref": "ProdImageId"
+                },
+                "KeyName": {"Ref": "ProdEC2SSHKeys"},
+                "InstanceType": "m4.large",
+                "InstanceMonitoring": "false",
+                "SecurityGroups": [
+                    {
+                        "Ref": "ec2ProdSecurityGroup"
+                    }
+                ],
+            "UserData" : { "Fn::Base64" : {"Fn::Join" : [ "",[
+                "#!/bin/bash \n",
+                "service tomcat stop \n",
+                "aws s3 cp s3://csra-developer-upload/prod-deployment/csra.war /var/lib/tomcat/webapps/ \n",
+                "chown tomcat:tomcat  /var/lib/tomcat/webapps/csra.war \n",
+                "service tomcat start \n"
+            ]]}}
+            }
+        },
+        "Prodgroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "DependsOn": "ProdLoadBalancer",
+            "Properties": {
+                "Cooldown": "300",
+                "DesiredCapacity": "2",
+                "MaxSize": "10",
+                "MinSize": "2",
+                "HealthCheckGracePeriod": "450",
+                "LaunchConfigurationName": {
+                    "Ref": "Prodlaunch"
+                },
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "ProdLoadBalancer"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Stack",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        },
+                        "PropagateAtLaunch": true
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "Prod Server",
+                        "PropagateAtLaunch": true
+                    }
+                ],
+                "VPCZoneIdentifier" : [
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdPrivSubnetAID"]]}},
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdPrivSubnetBID"]]}}
+                ]
+            }
+        },
+        "ec2ProdSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Security group for our Prod instance.",
+                "VpcId":  {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdVPCID"]]}},
+                "Tags": [
+                    {
+                        "Key": "Stack",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        }
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "ProdSG"
+                    }
+                ],
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "Description" : "From Bastion Host SG",
+                        "SourceSecurityGroupId":   {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-BastionSG"]]}}
+                   },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "443",
+                        "ToPort": "443",
+                        "Description" : "From Prod LB SG",
+                        "SourceSecurityGroupId":  {"Ref": "ProdLoadBalancerSecurityGroup"}
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8443",
+                        "ToPort": "8443",
+                        "Description" : "From Prod LB SG",
+                        "SourceSecurityGroupId":  {"Ref": "ProdLoadBalancerSecurityGroup"}
+                    }
+                
+                ]
+        }},
+        "ProdLoadBalancerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Prod Load Balancer Security Group",
+                "VpcId":  {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdVPCID"]]}},
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "443",
+                        "ToPort": "443",
+                        "Description" : "Open to the Internet",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8443",
+                        "ToPort": "8443",
+                        "Description" : "Open to the Internet",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+        "ProdSecurityGroup": {
+            "Description": "The Prod Host Security Group ID created in the Prod template",
+            "Value": {
+                "Ref": "ec2ProdSecurityGroup"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-ProdSecurityGroup"
+                }
+            }
+        },
+        "StackName": {
+			"Description": "The Prod stack name",
+			"Value": {"Ref": "AWS::StackName"},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "ProdStack"
+				}
+			}
+		}
+    }
+}

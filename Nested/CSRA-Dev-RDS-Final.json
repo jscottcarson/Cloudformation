@@ -1,0 +1,171 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description" : "RDS Oracle Development database creation.",
+  "Parameters" : {
+    "vpcs" : {
+      "Type" : "String"
+    },
+    "DevDBName": {
+      "Default": "CMSDB",
+      "Description" : "The database name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "DevDBUsername": {
+      "Default": "admin",
+      "NoEcho": "true",
+      "Description" : "The database admin account username",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+    
+    "DevDBPassword": {
+      "Default": "adminadmin",
+      "NoEcho": "true",
+      "Description" : "The database admin account password",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "41",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "ConstraintDescription" : "must contain only alphanumeric characters."
+    },
+
+    "DevDBClass" : {
+      "Default" : "db.m3.medium",
+      "Description" : "Database instance class",
+      "Type" : "String",
+      "AllowedValues" : [ "db.m4.large","db.m4.xlarge","db.m4.2xlarge","db.m4.4xlarge","db.m4.10xlarge","db.m4.16xlarge","db.m3.medium","db.m3.large","db.m3.xlarge","db.m3.2xlarge","db.r4.large","db.r4.xlarge","db.r4.2xlarge","db.r4.4xlarge", "db.r4.8xlarge","db.r4.16xlarge","db.r3.large","db.r3.xlarge","db.r3.2xlarge","db.r3.4xlarge","db.r3.8xlarge", "db.t2.micro","db.t2.small","db.t2.medium","db.t2.large","db.t2.xlarge","db.t2.2xlarge"
+    ],
+      "ConstraintDescription" : "must select a valid database instance type."
+    },
+
+    "DevDBAllocatedStorage" : {
+      "Default": "50",
+      "Description" : "The size of the database (Gb)",
+      "Type": "Number",
+      "MinValue": "5",
+      "MaxValue": "1024",
+      "ConstraintDescription" : "must be between 5 and 1024Gb."
+    }
+  },
+
+  "Resources" : {
+    "RDSDBSubnetGroup":{
+      "Type":"AWS::RDS::DBSubnetGroup",
+      "Properties":{
+        "DBSubnetGroupDescription": "Subnets available for the RDS DB Instance",
+        "SubnetIds": [
+          {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevPrivSubnetAID"]]}},
+          {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevPrivSubnetBID"]]}}
+        ]
+      }
+    },
+    "RDSDEVQASecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "RDS Dev and QA Security Group",
+        "VpcId" : {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevVPCID"]]}},
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From M&S Private Subnet A",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSVPCPrivSubnetA"]]}}
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From M&S Private Subnet A",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSVPCPrivSubnetB"]]}}
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From Dev Private Subnet A",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevVPCPrivSubnetA"]]}}
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From Dev Private Subnet A",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevVPCPrivSubnetB"]]}}
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From QA Private Subnet A",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-QAVPCPrivSubnetA"]]}}
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From QA Private Subnet A",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-QAVPCPrivSubnetB"]]}}
+          }
+        ],
+        "Tags": [
+          {
+              "Key": "Name",
+              "Value": "Development Oracle RDS"
+          }
+      ]
+      }
+    },
+
+   
+
+    "MyDB" : {
+      "Type" : "AWS::RDS::DBInstance",
+      "Properties" : {
+        "DBName" : { "Ref" : "DevDBName" },
+        "AllocatedStorage" : { "Ref" : "DevDBAllocatedStorage" },
+        "DBInstanceClass" : { "Ref" : "DevDBClass" },
+        "PubliclyAccessible" : "false",
+        "Engine" : "oracle-se1",
+        "EngineVersion" : "11.2.0.4.v12",
+        "LicenseModel" : "license-included",
+        "MasterUsername" : { "Ref" : "DevDBUsername" } ,
+        "MasterUserPassword" : { "Ref" : "DevDBPassword" },
+        "DBSubnetGroupName" : { "Ref" : "RDSDBSubnetGroup"},
+        "VPCSecurityGroups" : [ { "Fn::GetAtt" : [ "RDSDEVQASecurityGroup", "GroupId"] }]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "JDBCConnectionString": {
+      "Description" : "JDBC connection string for database",
+      "Value" : { "Fn::Join": [ "", [ "jdbc:oracle://",
+                                      { "Fn::GetAtt": [ "MyDB", "Endpoint.Address" ] },
+                                      ":",
+                                      { "Fn::GetAtt": [ "MyDB", "Endpoint.Port" ] },
+                                      "/",
+                                      { "Ref": "DevDBName" }]]}
+    }
+  }
+}

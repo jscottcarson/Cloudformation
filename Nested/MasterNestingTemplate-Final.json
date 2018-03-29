@@ -1,0 +1,560 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Master temdplate that includes nested templates",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Templates S3 Location"
+                    },
+                    "Parameters": [
+                        "s3Location"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Bastion Host Configuration"
+                    },
+                    "Parameters": [
+                        "BastionImageAMI",
+                        "BastionEC2SSHKeys"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Development Server Configuration"
+                    },
+                    "Parameters": [
+                        "DevelopmentImageAMI",
+                        "DevEC2SSHKeys"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Development Oracle Database"
+                    },
+                    "Parameters": [
+                        "DevDBName",
+                        "DevDBUsername",
+                        "DevDBPassword",
+                        "DevDBClass",
+                        "DevDBAllocatedStorage"                 
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "QA Environment"
+                    },
+                    "Parameters": [
+                        "QAImageAMI",
+                        "QAEC2SSHKeys"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Production Server Configuration"
+                    },
+                    "Parameters": [
+                        "ProdImageAMI",
+                        "ProdEC2SSHKeys"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Production Oracle Database"
+                    },
+                    "Parameters": [
+                        "ProdDBName",
+                        "ProdDBUsername",
+                        "ProdDBPassword",
+                        "ProdDBClass",
+                        "ProdDBAllocatedStorage",
+                        "ProdDatabaseSnapshotId"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Windows Desktop Server"
+                    },
+                    "Parameters": [
+                        "WindowsImageId",
+                        "WindowsEC2SSHKeys"
+                    ]
+                }
+            ],
+            "ParameterLabels": {
+                "s3Location": {
+                    "default": "Template Bucket Location"
+                },
+                "BastionImageAMI": {
+                    "default": "Bastion Server AMI-ID"
+                },
+                "BastionEC2SSHKeys": {
+                    "default": "Bastion Server SSH Key"
+                },
+                "DevelopmentImageAMI": {
+                    "default": "Dev Server AMI-ID"
+                },
+                "DevEC2SSHKeys": {
+                    "default": "Dev Server SSH Key"
+                },
+                "QAImageAMI": {
+                    "default": "QA Server AMI-ID"
+                },
+                "QAEC2SSHKeys": {
+                    "default": "QA Server SSH Key"
+                },
+                "ProdImageAMI": {
+                    "default": "Prod Server AMI-ID"
+                },
+                "ProdEC2SSHKeys": {
+                    "default": "Prod Server SSH Key"
+                },
+                "WindowsImageId": {
+                    "default": "Windows Server AMI-ID"
+                },
+                "WindowsEC2SSHKeys": {
+                    "default": "Windows Server SSH Key"
+                },
+                "DevDBName": {
+                    "default": "Development RDS Name"
+                },
+                "DevDBClass": {
+                    "default": "Development RDS Instance Type"
+                },
+                "DevDBAllocatedStorage": {
+                    "default": "Development Database Drive Size"
+                },
+                "DevDatabaseSnapshotId": {
+                    "default": "Development Database Snapshot"
+                },
+                "ProdDBName": {
+                    "default": "Production RDS Name"
+                },
+                "ProdDBClass": {
+                    "default": "Production RDS Instance Type"
+                },
+                "ProdDBAllocatedStorage": {
+                    "default": "Production Database Drive Size"
+                },
+                "ProdDatabaseSnapshotId": {
+                    "default": "Production Database Snapshot"
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "s3Location": {
+            "Description": "Enter the name of the S3 Bucket where the templates were uploaded.",
+            "Type": "String",
+            "Default": "csraohio"
+        },
+        "BastionImageAMI": {
+            "Description": "Enter the Image ID of an existing AMI containing the Bastion host configuration you want to launch.",
+            "Type": "String",
+            "Default": "ami-450e3f20"
+        },
+        "BastionEC2SSHKeys": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "SSH PEM key name to attach to the Bastion host."
+        },
+        "DevelopmentImageAMI": {
+            "Description": "Enter the Image ID of an existing AMI containing the Development host configuration you want to launch.",
+            "Type": "String",
+            "Default": "ami-450e3f20"
+        },
+        "DevEC2SSHKeys": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "SSH PEM key name to attach to Dev instances."
+        },
+        "QAImageAMI": {
+            "Description": "Enter the Image ID of an existing AMI containing the QA host configuration you want to launch",
+            "Type": "String",
+            "Default": "ami-450e3f20"
+        },
+        "QAEC2SSHKeys": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "SSH PEM key name to attach to QA instances."
+        },
+        "ProdImageAMI": {
+            "Description": "Enter the Image ID of an existing AMI containing the Prod host configuration you want to launch",
+            "Type": "String",
+            "Default": "ami-450e3f20"
+        },
+        "ProdEC2SSHKeys": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "SSH PEM key name to attach to Production instances."
+        },
+        "WindowsImageId": {
+            "Description": "Enter the Image ID of an existing AMI containing the Windows host configuration you want to launch",
+            "Type": "String",
+            "Default": "ami-450e3f20"
+        },
+        "WindowsEC2SSHKeys": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "SSH PEM key name to attach to Windows instances."
+        },
+        "DevDBName": {
+            "Default": "DevDB",
+            "Description": "The Development database name",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "64",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "DevDBUsername": {
+            "Default": "admin",
+            "NoEcho": "true",
+            "Description": "The database admin account username",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "16",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "DevDBPassword": {
+            "Default": "adminadmin",
+            "NoEcho": "true",
+            "Description": "The database admin account password",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "41",
+            "AllowedPattern": "[a-zA-Z0-9]*",
+            "ConstraintDescription": "must contain only alphanumeric characters."
+        },
+        "DevDBClass": {
+            "Default": "db.m3.medium",
+            "Description": "Database instance class",
+            "Type": "String",
+            "AllowedValues" : [ "db.m4.large","db.m4.xlarge","db.m4.2xlarge","db.m4.4xlarge","db.m4.10xlarge","db.m4.16xlarge","db.m3.medium","db.m3.large","db.m3.xlarge","db.m3.2xlarge","db.r4.large","db.r4.xlarge","db.r4.2xlarge","db.r4.4xlarge", "db.r4.8xlarge","db.r4.16xlarge","db.r3.large","db.r3.xlarge","db.r3.2xlarge","db.r3.4xlarge","db.r3.8xlarge", "db.t2.micro","db.t2.small","db.t2.medium","db.t2.large","db.t2.xlarge","db.t2.2xlarge"
+            ],
+            "ConstraintDescription": "must select a valid database instance type."
+        },
+        "DevDBAllocatedStorage": {
+            "Default": "50",
+            "Description": "The size of the database (Gb)",
+            "Type": "Number",
+            "MinValue": "5",
+            "MaxValue": "1024",
+            "ConstraintDescription": "must be between 5 and 1024Gb."
+        },
+        "ProdDBName": {
+            "Default": "ProdDB",
+            "Description": "The Production database name",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "64",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "ProdDBUsername": {
+            "Default": "admin",
+            "NoEcho": "true",
+            "Description": "The database admin account username",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "16",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "ProdDBPassword": {
+            "Default": "adminadmin",
+            "NoEcho": "true",
+            "Description": "The database admin account password",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "41",
+            "AllowedPattern": "[a-zA-Z0-9]*",
+            "ConstraintDescription": "must contain only alphanumeric characters."
+        },
+        "ProdDBClass": {
+            "Default": "db.m3.medium",
+            "Description": "Database instance class",
+            "Type": "String",
+            "AllowedValues" : [ "db.m4.large","db.m4.xlarge","db.m4.2xlarge","db.m4.4xlarge","db.m4.10xlarge","db.m4.16xlarge","db.m3.medium","db.m3.large","db.m3.xlarge","db.m3.2xlarge","db.r4.large","db.r4.xlarge","db.r4.2xlarge","db.r4.4xlarge", "db.r4.8xlarge","db.r4.16xlarge","db.r3.large","db.r3.xlarge","db.r3.2xlarge","db.r3.4xlarge","db.r3.8xlarge", "db.t2.micro","db.t2.small","db.t2.medium","db.t2.large","db.t2.xlarge","db.t2.2xlarge"
+            ],
+            "ConstraintDescription": "must select a valid database instance type."
+        },
+        "ProdDBAllocatedStorage": {
+            "Default": "50",
+            "Description": "The size of the database (Gb)",
+            "Type": "Number",
+            "MinValue": "5",
+            "MaxValue": "1024",
+            "ConstraintDescription": "must be between 5 and 1024Gb."
+        }
+    },
+    "Resources": {
+        "VPCStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "CSRA-VPC's-Final.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "DevVPCBaseRange": "12.0",
+                    "DevVPCEndingRange": "0.0",
+                    "QAVPCBaseRange": "172.0",
+                    "QAVPCEndingRange": "0.0",
+                    "ProdVPCBaseRange": "81.0",
+                    "ProdVPCEndingRange": "0.0",
+                    "MSVPCBaseRange": "215.0",
+                    "MSVPCEndingRange": "0.0"
+                }
+            }
+        },
+        "BastionStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "VPCStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "CSRABastionFinal.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "BastionImageId": {
+                        "Ref": "BastionImageAMI"
+                    },
+                    "vpcs": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "BastionEC2SSHKeys": {
+                        "Ref": "BastionEC2SSHKeys"
+                    }
+                }
+            }
+        },
+        "DevStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "VPCStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "CSRADevFinal.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "DevelopmentImageId": {
+                        "Ref": "DevelopmentImageAMI"
+                    },
+                    "vpcs": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "DevEC2SSHKeys": {
+                        "Ref": "DevEC2SSHKeys"
+                    }
+                }
+            }
+        },
+        "QAStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "VPCStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "CSRAQAFinal.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "QAImageId": {
+                        "Ref": "QAImageAMI"
+                    },
+                    "vpcs": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "QAEC2SSHKeys": {
+                        "Ref": "QAEC2SSHKeys"
+                    }
+                }
+            }
+        },
+        "ProdStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "VPCStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "CSRAProdFinal.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "ProdImageId": {
+                        "Ref": "ProdImageAMI"
+                    },
+                    "vpcs": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "ProdEC2SSHKeys": {
+                        "Ref": "ProdEC2SSHKeys"
+                    }
+                }
+            }
+        },
+        "WindowsStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "QAStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "CSRAWindowsDesktopFinal.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "WindowsImageId": {
+                        "Ref": "WindowsImageId"
+                    },
+                    "vpcs": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "WindowsEC2SSHKeys": {
+                        "Ref": "WindowsEC2SSHKeys"
+                    }
+                }
+            }
+        },
+        "RDSDevQAStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "WindowsStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "CSRA-Dev-RDS-Final.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "vpcs": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "DevDBName": {
+                        "Ref": "DevDBName"
+                    },
+                    "DevDBUsername": {
+                        "Ref": "DevDBUsername"
+                    },
+                    "DevDBPassword": {
+                        "Ref": "DevDBPassword"
+                    },
+                    "DevDBClass": {
+                        "Ref": "DevDBClass"
+                    },
+                    "DevDBAllocatedStorage": {
+                        "Ref": "DevDBAllocatedStorage"
+                    }
+                }
+            }
+        },
+        "RDSProdStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "WindowsStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "CSRA-Prod-RDS-Final.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "vpcs": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "ProdDBName": {
+                        "Ref": "ProdDBName"
+                    },
+                    "ProdDBUsername": {
+                        "Ref": "ProdDBUsername"
+                    },
+                    "ProdDBPassword": {
+                        "Ref": "ProdDBPassword"
+                    },
+                    "ProdDBClass": {
+                        "Ref": "ProdDBClass"
+                    },
+                    "ProdDBAllocatedStorage": {
+                        "Ref": "ProdDBAllocatedStorage"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,153 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description" : "RDS Oracle Production database creation.",
+  "Parameters" : {
+    "vpcs" : {
+      "Type" : "String"
+    },
+    "ProdDBName": {
+      "Default": "CMSDB",
+      "Description" : "The database name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "ProdDBUsername": {
+      "Default": "admin",
+      "NoEcho": "true",
+      "Description" : "The database admin account username",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+    
+    "ProdDBPassword": {
+      "Default": "adminadmin",
+      "NoEcho": "true",
+      "Description" : "The database admin account password",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "41",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "ConstraintDescription" : "must contain only alphanumeric characters."
+    },
+
+    "ProdDBClass" : {
+      "Default" : "db.m3.medium",
+      "Description" : "Database instance class",
+      "Type" : "String",
+      "AllowedValues" : [ "db.m4.large","db.m4.xlarge","db.m4.2xlarge","db.m4.4xlarge","db.m4.10xlarge","db.m4.16xlarge","db.m3.medium","db.m3.large","db.m3.xlarge","db.m3.2xlarge","db.r4.large","db.r4.xlarge","db.r4.2xlarge","db.r4.4xlarge", "db.r4.8xlarge","db.r4.16xlarge","db.r3.large","db.r3.xlarge","db.r3.2xlarge","db.r3.4xlarge","db.r3.8xlarge", "db.t2.micro","db.t2.small","db.t2.medium","db.t2.large","db.t2.xlarge","db.t2.2xlarge"
+    ],
+      "ConstraintDescription" : "must select a valid database instance type."
+    },
+
+    "ProdDBAllocatedStorage" : {
+      "Default": "50",
+      "Description" : "The size of the database (Gb)",
+      "Type": "Number",
+      "MinValue": "5",
+      "MaxValue": "1024",
+      "ConstraintDescription" : "must be between 5 and 1024Gb."
+    }
+  },
+
+  "Resources" : {
+    "RDSDBSubnetGroup":{
+      "Type":"AWS::RDS::DBSubnetGroup",
+      "Properties":{
+        "DBSubnetGroupDescription": "Subnets available for the RDS DB Instance",
+        "SubnetIds": [
+          {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdPrivSubnetAID"]]}},
+          {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdPrivSubnetBID"]]}}
+        ]
+      }
+    },
+    "RDSProdSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "RDS Prod Security Group",
+        "VpcId" : {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdVPCID"]]}},
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From M&S Private Subnet A",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSVPCPrivSubnetA"]]}}
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From M&S Private Subnet B",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSVPCPrivSubnetB"]]}}
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From Prod Private Subnet A",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdVPCPrivSubnetA"]]}}
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "1521",
+            "ToPort": "1521",
+            "Description" : "From M&S Private Subnet B",
+            "CidrIp": {
+              "Fn::ImportValue": {
+                "Fn::Join" : [ "", [{"Ref": "vpcs"}, "-ProdVPCPrivSubnetB"]]}}
+          }
+        ],
+        "Tags": [
+          {
+              "Key": "Name",
+              "Value": "Production Oracle RDS"
+          }
+      ]
+      }
+    },
+
+   
+
+    "MyDB" : {
+      "Type" : "AWS::RDS::DBInstance",
+      "Properties" : {
+        "DBName" : { "Ref" : "ProdDBName" },
+        "AllocatedStorage" : { "Ref" : "ProdDBAllocatedStorage" },
+        "DBInstanceClass" : { "Ref" : "ProdDBClass" },
+        "PubliclyAccessible" : "false",
+        "Engine" : "oracle-se1",
+        "EngineVersion" : "11.2.0.4.v12",
+        "LicenseModel" : "license-included",
+        "MasterUsername" : { "Ref" : "ProdDBUsername" } ,
+        "MasterUserPassword" : { "Ref" : "ProdDBPassword" },
+        "DBSubnetGroupName" : { "Ref" : "RDSDBSubnetGroup"},
+        "VPCSecurityGroups" : [ { "Fn::GetAtt" : [ "RDSProdSecurityGroup", "GroupId"] }]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "JDBCConnectionString": {
+      "Description" : "JDBC connection string for database",
+      "Value" : { "Fn::Join": [ "", [ "jdbc:oracle://",
+                                      { "Fn::GetAtt": [ "MyDB", "Endpoint.Address" ] },
+                                      ":",
+                                      { "Fn::GetAtt": [ "MyDB", "Endpoint.Port" ] },
+                                      "/",
+                                      { "Ref": "ProdDBName" }]]}
+    }
+  }
+}

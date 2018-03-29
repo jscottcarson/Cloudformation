@@ -1,0 +1,190 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "QA server from an autoscaling group and launch configuration into the QA Public Subnet in Availability Zone A from a pre-configured AMI Image ID.",
+    "Parameters": {
+        "vpcs" : {
+            "Type" : "String"
+        },
+        "QAImageId": {
+            "Description": "Enter the Image ID of an existing AMI containing the QA host configuration you want to launch",
+            "Type": "String"
+        },
+        "QAEC2SSHKeys":{
+            "Description": "Enter the key pair you'd like to attach to the qa servers. It must be an existing key pair in the environment",
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "QALoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "DependsOn": "QALoadBalancerSecurityGroup",
+            "Properties": {
+                "Subnets": [
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-QAPrivSubnetAID"]]}},
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-QAPrivSubnetBID"]]}}
+                ],
+                "Listeners": [
+                    {
+                        "LoadBalancerPort": "80",
+                        "InstancePort": "80",
+                        "Protocol": "HTTP"
+                    }
+                ],
+                "HealthCheck": {
+                    "Target": "HTTPS:443/csra/ws/OutboundMessageIvaFile.wsdl",
+                    "HealthyThreshold": "3",
+                    "UnhealthyThreshold": "5",
+                    "Interval": "30",
+                    "Timeout": "5"
+                }
+            }
+        },
+        "QAlaunch": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "DependsOn": "ec2QASecurityGroup",
+            "Properties": {
+                "ImageId": {
+                    "Ref": "QAImageId"
+                },
+                "KeyName": {"Ref": "QAEC2SSHKeys"},
+                "InstanceType": "m4.large",
+                "InstanceMonitoring": "false",
+                "SecurityGroups": [
+                    {
+                        "Ref": "ec2QASecurityGroup"
+                    }
+                ],
+            "UserData" : { "Fn::Base64" : {"Fn::Join" : [ "", [
+                "#!/bin/bash \n",
+                "service tomcat stop \n",
+                "aws s3 cp s3://csra-developer-upload/qa-deployment/csra.war /var/lib/tomcat/webapps/ \n",
+                "chown tomcat:tomcat  /var/lib/tomcat/webapps/csra.war \n",
+                "service tomcat start \n"
+            ]]}} }
+        },
+        "QAgroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "DependsOn": "QALoadBalancer",
+            "Properties": {
+                "Cooldown": "300",
+                "DesiredCapacity": "2",
+                "MaxSize": "10",
+                "MinSize": "2",
+                "HealthCheckGracePeriod": "450",
+                "LaunchConfigurationName": {
+                    "Ref": "QAlaunch"
+                },
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "QALoadBalancer"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Stack",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        },
+                        "PropagateAtLaunch": true
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "QA Server",
+                        "PropagateAtLaunch": true
+                    }
+                ],
+                "VPCZoneIdentifier" : [
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-QAPrivSubnetAID"]]}},
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-QAPrivSubnetBID"]]}}
+                ]
+            }
+        },
+        "ec2QASecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Security group for our QA instance.",
+                "VpcId":  {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-QAVPCID"]]}},
+                "Tags": [
+                    {
+                        "Key": "Stack",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        }
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "QASG"
+                    }
+                ],
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "Description" : "From Bastion Host SG",
+                        "SourceSecurityGroupId":   {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-BastionSG"]]}}
+                   },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "443",
+                        "ToPort": "443",
+                        "Description" : "From QA LB SG",
+                        "SourceSecurityGroupId":  {"Ref": "QALoadBalancerSecurityGroup"}
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8443",
+                        "ToPort": "8443",
+                        "Description" : "From QA LB SG",
+                        "SourceSecurityGroupId":  {"Ref": "QALoadBalancerSecurityGroup"}
+                    }
+                
+                ]
+        }},
+        "QALoadBalancerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "QA Load Balancer Security Group",
+                "VpcId":  {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-QAVPCID"]]}},
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "443",
+                        "ToPort": "443",
+                        "Description" : "Open to the Internet",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8443",
+                        "ToPort": "8443",
+                        "Description" : "Open to the Internet",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+        "QASecurityGroup": {
+            "Description": "The QA Host Security Group ID created in the QA template",
+            "Value": {
+                "Ref": "ec2QASecurityGroup"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-QASecurityGroup"
+                }
+            }
+        },
+        "StackName": {
+			"Description": "The QA stack name",
+			"Value": {"Ref": "AWS::StackName"},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "QAStack"
+				}
+			}
+		}
+    }
+}

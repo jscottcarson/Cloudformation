@@ -1,0 +1,63 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Bastion server from an autoscaling group and launch configuration into the M&S private Subnet in Availability Zone A from a pre-configured AMI Image ID.",
+    "Parameters": {
+        "vpcs" : {
+            "Type" : "String"
+        },
+        "BastionImageId": {
+            "Description": "Enter the Image ID of an existing AMI containing the Bastion host configuration you want to launch",
+            "Type": "String"
+        },
+        "BastionEC2SSHKeys":{
+            "Description": "Enter the key pair you'd like to attach to the bastion servers. It must be an existing key pair in the environment",
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "Bastionlaunch": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Properties": {
+                "ImageId": {
+                    "Ref": "BastionImageId"
+                },
+                "KeyName": {"Ref": "BastionEC2SSHKeys"},
+                "InstanceType": "t2.small",
+                "InstanceMonitoring": "false",
+                "SecurityGroups": [ {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-BastionSG"]]}}
+                ]
+            }
+        },
+        "Bastiongroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "Cooldown": "300",
+                "DesiredCapacity": "1",
+                "MaxSize": "2",
+                "MinSize": "1",
+                "HealthCheckGracePeriod": "450",
+                "LaunchConfigurationName": {
+                    "Ref": "Bastionlaunch"
+                },
+                "Tags": [
+                    {
+                        "Key": "Stack",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        },
+                        "PropagateAtLaunch": true
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "Bastion Server",
+                        "PropagateAtLaunch": true
+                    }
+                ],
+                "VPCZoneIdentifier" : [
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSPrivSubnetAID"]]}},
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-MSPrivSubnetBID"]]}}
+                ]
+            }
+        }
+    }
+}

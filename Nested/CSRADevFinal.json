@@ -1,0 +1,184 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Development server from an autoscaling group and launch configuration into the Development VPC Public Subnet in Availability Zone A from a pre-configured AMI Image ID.",
+    "Parameters": {
+        "vpcs" : {
+            "Type" : "String"
+        },
+        "DevelopmentImageId": {
+            "Description": "Enter the Image ID of an existing AMI containing the Development host configuration you want to launch",
+            "Type": "String"
+        },
+        "DevEC2SSHKeys":{
+            "Description": "Enter the key pair you'd like to attach to the development servers. It must be an existing key pair in the environment",
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "DevLoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "DependsOn": "DevLoadBalancerSecurityGroup",
+            "Properties": {
+                "Subnets": [
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevPrivSubnetAID"]]}},
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevPrivSubnetBID"]]}}
+                ],
+                "Listeners": [
+                    {
+                        "LoadBalancerPort": "80",
+                        "InstancePort": "80",
+                        "Protocol": "HTTP"
+                    }
+                ],
+                "HealthCheck": {
+                    "Target": "HTTPS:443/csra/ws/OutboundMessageIvaFile.wsdl",
+                    "HealthyThreshold": "3",
+                    "UnhealthyThreshold": "5",
+                    "Interval": "30",
+                    "Timeout": "5"
+                }
+            }
+        },
+        "Developmentlaunch": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "DependsOn": "ec2DevelopmentSecurityGroup",
+            "Properties": {
+                "ImageId": {
+                    "Ref": "DevelopmentImageId"
+                },
+                "KeyName": {"Ref": "DevEC2SSHKeys"},
+                "InstanceType": "m4.large",
+                "InstanceMonitoring": "false",
+                "SecurityGroups": [
+                    {
+                        "Ref": "ec2DevelopmentSecurityGroup"
+                    }
+                ]
+            }
+        },
+        "Developmentgroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "DependsOn": "DevLoadBalancer",
+            "Properties": {
+                "Cooldown": "120",
+                "DesiredCapacity": "1",
+                "MaxSize": "2",
+                "MinSize": "1",
+                "HealthCheckGracePeriod": "180",
+                "LaunchConfigurationName": {
+                    "Ref": "Developmentlaunch"
+                },
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "DevLoadBalancer"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Stack",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        },
+                        "PropagateAtLaunch": true
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "Development Server",
+                        "PropagateAtLaunch": true
+                    }
+                ],
+                "VPCZoneIdentifier" : [
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevPrivSubnetAID"]]}},
+                    {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevPrivSubnetBID"]]}}
+                ]
+            }
+        },
+        "ec2DevelopmentSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Security group for our Development instance.",
+                "VpcId":  {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevVPCID"]]}},
+                "Tags": [
+                    {
+                        "Key": "Stack",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        }
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "DevelopmentSG"
+                    }
+                ],
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "Description" : "From Bastion Host SG",
+                        "SourceSecurityGroupId":   {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-BastionSG"]]}}
+                   },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "443",
+                        "ToPort": "443",
+                        "Description" : "From Dev Load Balancer SG",
+                        "SourceSecurityGroupId":  {"Ref": "DevLoadBalancerSecurityGroup"}
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8443",
+                        "ToPort": "8443",
+                        "Description" : "From Dev Load Balancer SG",
+                        "SourceSecurityGroupId":  {"Ref": "DevLoadBalancerSecurityGroup"}
+                    }
+                
+                ]
+        }},
+        "DevLoadBalancerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Development Load Balancer Security Group",
+                "VpcId":  {"Fn::ImportValue" : {"Fn::Join" : [ "", [{"Ref": "vpcs"}, "-DevVPCID"]]}},
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "443",
+                        "ToPort": "443",
+                        "Description" : "Open to the Internet",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8443",
+                        "ToPort": "8443",
+                        "Description" : "Open to the Internet",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+        "DevelopmentSecurityGroup": {
+            "Description": "The Development Host Security Group ID created in the Development template",
+            "Value": {
+                "Ref": "ec2DevelopmentSecurityGroup"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-DevelopmentSecurityGroup"
+                }
+            }
+        },
+        "StackName": {
+			"Description": "The Development stack name",
+			"Value": {"Ref": "AWS::StackName"},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "DevStack"
+				}
+			}
+		}
+    }
+}
