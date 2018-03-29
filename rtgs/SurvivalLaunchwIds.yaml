@@ -1,0 +1,1030 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Write WP in ASG value of 1, Webserver WP in ASG with LB, RDS Single AZ
+  Backend.
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  WebServerInstanceID:
+    Description: Enter the ID of the Webserver to launch
+    Type: String
+  WebServerInstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    Default: t2.small
+    AllowedValues:
+    - t1.micro
+    - t2.nano
+    - t2.micro
+    - t2.small
+    - t2.medium
+    - t2.large
+    - m1.small
+    - m1.medium
+    - m1.large
+    - m1.xlarge
+    - m2.xlarge
+    - m2.2xlarge
+    - m2.4xlarge
+    - m3.medium
+    - m3.large
+    - m3.xlarge
+    - m3.2xlarge
+    - m4.large
+    - m4.xlarge
+    - m4.2xlarge
+    - m4.4xlarge
+    - m4.10xlarge
+    - c1.medium
+    - c1.xlarge
+    - c3.large
+    - c3.xlarge
+    - c3.2xlarge
+    - c3.4xlarge
+    - c3.8xlarge
+    - c4.large
+    - c4.xlarge
+    - c4.2xlarge
+    - c4.4xlarge
+    - c4.8xlarge
+    - g2.2xlarge
+    - g2.8xlarge
+    - r3.large
+    - r3.xlarge
+    - r3.2xlarge
+    - r3.4xlarge
+    - r3.8xlarge
+    - i2.xlarge
+    - i2.2xlarge
+    - i2.4xlarge
+    - i2.8xlarge
+    - d2.xlarge
+    - d2.2xlarge
+    - d2.4xlarge
+    - d2.8xlarge
+    - hi1.4xlarge
+    - hs1.8xlarge
+    - cr1.8xlarge
+    - cc2.8xlarge
+    - cg1.4xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  WriteServerInstanceType:
+    Description: WriteServer EC2 instance type
+    Type: String
+    Default: t2.small
+    AllowedValues:
+    - t1.micro
+    - t2.nano
+    - t2.micro
+    - t2.small
+    - t2.medium
+    - t2.large
+    - m1.small
+    - m1.medium
+    - m1.large
+    - m1.xlarge
+    - m2.xlarge
+    - m2.2xlarge
+    - m2.4xlarge
+    - m3.medium
+    - m3.large
+    - m3.xlarge
+    - m3.2xlarge
+    - m4.large
+    - m4.xlarge
+    - m4.2xlarge
+    - m4.4xlarge
+    - m4.10xlarge
+    - c1.medium
+    - c1.xlarge
+    - c3.large
+    - c3.xlarge
+    - c3.2xlarge
+    - c3.4xlarge
+    - c3.8xlarge
+    - c4.large
+    - c4.xlarge
+    - c4.2xlarge
+    - c4.4xlarge
+    - c4.8xlarge
+    - g2.2xlarge
+    - g2.8xlarge
+    - r3.large
+    - r3.xlarge
+    - r3.2xlarge
+    - r3.4xlarge
+    - r3.8xlarge
+    - i2.xlarge
+    - i2.2xlarge
+    - i2.4xlarge
+    - i2.8xlarge
+    - d2.xlarge
+    - d2.2xlarge
+    - d2.4xlarge
+    - d2.8xlarge
+    - hi1.4xlarge
+    - hs1.8xlarge
+    - cr1.8xlarge
+    - cc2.8xlarge
+    - cg1.4xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  WriteServerInstanceID:
+    Description: Enter the ID of the Writeserver to launch
+    Type: String
+  DatabaseSnapshotID:
+    Description: Enter the Snaphost ID of the RDS instance to launch
+    Type: String
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DBClass:
+    Description: Database instance class
+    Type: String
+    Default: db.t2.small
+    AllowedValues:
+    - db.t1.micro
+    - db.m1.small
+    - db.m1.medium
+    - db.m1.large
+    - db.m1.xlarge
+    - db.m2.xlarge
+    - db.m2.2xlarge
+    - db.m2.4xlarge
+    - db.m3.medium
+    - db.m3.large
+    - db.m3.xlarge
+    - db.m3.2xlarge
+    - db.m4.large
+    - db.m4.xlarge
+    - db.m4.2xlarge
+    - db.m4.4xlarge
+    - db.m4.10xlarge
+    - db.r3.large
+    - db.r3.xlarge
+    - db.r3.2xlarge
+    - db.r3.4xlarge
+    - db.r3.8xlarge
+    - db.m2.xlarge
+    - db.m2.2xlarge
+    - db.m2.4xlarge
+    - db.cr1.8xlarge
+    - db.t2.micro
+    - db.t2.small
+    - db.t2.medium
+    - db.t2.large
+    ConstraintDescription: must select a valid database instance type.
+  MultiAZDatabase:
+    Default: 'false'
+    Description: Create a Multi-AZ MySQL Amazon RDS database instance
+    Type: String
+    AllowedValues:
+    - 'true'
+    - 'false'
+    ConstraintDescription: must be either true or false.
+  WebServerCapacity:
+    Default: '1'
+    Description: The initial number of WebServer instances
+    Type: Number
+    MinValue: '1'
+    MaxValue: '5'
+    ConstraintDescription: must be between 1 and 5 EC2 instances.
+  DBAllocatedStorage:
+    Default: '30'
+    Description: The size of the database (Gb)
+    Type: Number
+    MinValue: '30'
+    MaxValue: '1024'
+    ConstraintDescription: must be between 5 and 1024Gb.
+Mappings:
+  AWSInstanceType2Arch:
+    t1.micro:
+      Arch: PV64
+    t2.nano:
+      Arch: HVM64
+    t2.micro:
+      Arch: HVM64
+    t2.small:
+      Arch: HVM64
+    t2.medium:
+      Arch: HVM64
+    t2.large:
+      Arch: HVM64
+    m1.small:
+      Arch: PV64
+    m1.medium:
+      Arch: PV64
+    m1.large:
+      Arch: PV64
+    m1.xlarge:
+      Arch: PV64
+    m2.xlarge:
+      Arch: PV64
+    m2.2xlarge:
+      Arch: PV64
+    m2.4xlarge:
+      Arch: PV64
+    m3.medium:
+      Arch: HVM64
+    m3.large:
+      Arch: HVM64
+    m3.xlarge:
+      Arch: HVM64
+    m3.2xlarge:
+      Arch: HVM64
+    m4.large:
+      Arch: HVM64
+    m4.xlarge:
+      Arch: HVM64
+    m4.2xlarge:
+      Arch: HVM64
+    m4.4xlarge:
+      Arch: HVM64
+    m4.10xlarge:
+      Arch: HVM64
+    c1.medium:
+      Arch: PV64
+    c1.xlarge:
+      Arch: PV64
+    c3.large:
+      Arch: HVM64
+    c3.xlarge:
+      Arch: HVM64
+    c3.2xlarge:
+      Arch: HVM64
+    c3.4xlarge:
+      Arch: HVM64
+    c3.8xlarge:
+      Arch: HVM64
+    c4.large:
+      Arch: HVM64
+    c4.xlarge:
+      Arch: HVM64
+    c4.2xlarge:
+      Arch: HVM64
+    c4.4xlarge:
+      Arch: HVM64
+    c4.8xlarge:
+      Arch: HVM64
+    g2.2xlarge:
+      Arch: HVMG2
+    g2.8xlarge:
+      Arch: HVMG2
+    r3.large:
+      Arch: HVM64
+    r3.xlarge:
+      Arch: HVM64
+    r3.2xlarge:
+      Arch: HVM64
+    r3.4xlarge:
+      Arch: HVM64
+    r3.8xlarge:
+      Arch: HVM64
+    i2.xlarge:
+      Arch: HVM64
+    i2.2xlarge:
+      Arch: HVM64
+    i2.4xlarge:
+      Arch: HVM64
+    i2.8xlarge:
+      Arch: HVM64
+    d2.xlarge:
+      Arch: HVM64
+    d2.2xlarge:
+      Arch: HVM64
+    d2.4xlarge:
+      Arch: HVM64
+    d2.8xlarge:
+      Arch: HVM64
+    hi1.4xlarge:
+      Arch: HVM64
+    hs1.8xlarge:
+      Arch: HVM64
+    cr1.8xlarge:
+      Arch: HVM64
+    cc2.8xlarge:
+      Arch: HVM64
+  AWSInstanceType2NATArch:
+    t1.micro:
+      Arch: NATPV64
+    t2.nano:
+      Arch: NATHVM64
+    t2.micro:
+      Arch: NATHVM64
+    t2.small:
+      Arch: NATHVM64
+    t2.medium:
+      Arch: NATHVM64
+    t2.large:
+      Arch: NATHVM64
+    m1.small:
+      Arch: NATPV64
+    m1.medium:
+      Arch: NATPV64
+    m1.large:
+      Arch: NATPV64
+    m1.xlarge:
+      Arch: NATPV64
+    m2.xlarge:
+      Arch: NATPV64
+    m2.2xlarge:
+      Arch: NATPV64
+    m2.4xlarge:
+      Arch: NATPV64
+    m3.medium:
+      Arch: NATHVM64
+    m3.large:
+      Arch: NATHVM64
+    m3.xlarge:
+      Arch: NATHVM64
+    m3.2xlarge:
+      Arch: NATHVM64
+    m4.large:
+      Arch: NATHVM64
+    m4.xlarge:
+      Arch: NATHVM64
+    m4.2xlarge:
+      Arch: NATHVM64
+    m4.4xlarge:
+      Arch: NATHVM64
+    m4.10xlarge:
+      Arch: NATHVM64
+    c1.medium:
+      Arch: NATPV64
+    c1.xlarge:
+      Arch: NATPV64
+    c3.large:
+      Arch: NATHVM64
+    c3.xlarge:
+      Arch: NATHVM64
+    c3.2xlarge:
+      Arch: NATHVM64
+    c3.4xlarge:
+      Arch: NATHVM64
+    c3.8xlarge:
+      Arch: NATHVM64
+    c4.large:
+      Arch: NATHVM64
+    c4.xlarge:
+      Arch: NATHVM64
+    c4.2xlarge:
+      Arch: NATHVM64
+    c4.4xlarge:
+      Arch: NATHVM64
+    c4.8xlarge:
+      Arch: NATHVM64
+    g2.2xlarge:
+      Arch: NATHVMG2
+    g2.8xlarge:
+      Arch: NATHVMG2
+    r3.large:
+      Arch: NATHVM64
+    r3.xlarge:
+      Arch: NATHVM64
+    r3.2xlarge:
+      Arch: NATHVM64
+    r3.4xlarge:
+      Arch: NATHVM64
+    r3.8xlarge:
+      Arch: NATHVM64
+    i2.xlarge:
+      Arch: NATHVM64
+    i2.2xlarge:
+      Arch: NATHVM64
+    i2.4xlarge:
+      Arch: NATHVM64
+    i2.8xlarge:
+      Arch: NATHVM64
+    d2.xlarge:
+      Arch: NATHVM64
+    d2.2xlarge:
+      Arch: NATHVM64
+    d2.4xlarge:
+      Arch: NATHVM64
+    d2.8xlarge:
+      Arch: NATHVM64
+    hi1.4xlarge:
+      Arch: NATHVM64
+    hs1.8xlarge:
+      Arch: NATHVM64
+    cr1.8xlarge:
+      Arch: NATHVM64
+    cc2.8xlarge:
+      Arch: NATHVM64
+  AWSRegionArch2AMI:
+    us-east-1:
+      PV64: ami-2a69aa47
+      HVM64: ami-6869aa05
+      HVMG2: ami-22b68b59
+    us-west-2:
+      PV64: ami-7f77b31f
+      HVM64: ami-7172b611
+      HVMG2: ami-be4ea3c6
+    us-west-1:
+      PV64: ami-a2490dc2
+      HVM64: ami-31490d51
+      HVMG2: ami-cfe5cfaf
+    eu-west-1:
+      PV64: ami-4cdd453f
+      HVM64: ami-f9dd458a
+      HVMG2: ami-aedb26d7
+    eu-west-2:
+      PV64: NOT_SUPPORTED
+      HVM64: ami-886369ec
+      HVMG2: NOT_SUPPORTED
+    eu-central-1:
+      PV64: ami-6527cf0a
+      HVM64: ami-ea26ce85
+      HVMG2: ami-40b8102f
+    ap-northeast-1:
+      PV64: ami-3e42b65f
+      HVM64: ami-374db956
+      HVMG2: ami-d95aabbf
+    ap-northeast-2:
+      PV64: NOT_SUPPORTED
+      HVM64: ami-2b408b45
+      HVMG2: NOT_SUPPORTED
+    ap-southeast-1:
+      PV64: ami-df9e4cbc
+      HVM64: ami-a59b49c6
+      HVMG2: ami-15660276
+    ap-southeast-2:
+      PV64: ami-63351d00
+      HVM64: ami-dc361ebf
+      HVMG2: ami-0b5a4168
+    ap-south-1:
+      PV64: NOT_SUPPORTED
+      HVM64: ami-ffbdd790
+      HVMG2: ami-f4cdb79b
+    us-east-2:
+      PV64: NOT_SUPPORTED
+      HVM64: ami-f6035893
+      HVMG2: NOT_SUPPORTED
+    ca-central-1:
+      PV64: NOT_SUPPORTED
+      HVM64: ami-730ebd17
+      HVMG2: NOT_SUPPORTED
+    sa-east-1:
+      PV64: ami-1ad34676
+      HVM64: ami-6dd04501
+      HVMG2: NOT_SUPPORTED
+    cn-north-1:
+      PV64: ami-77559f1a
+      HVM64: ami-8e6aa0e3
+      HVMG2: NOT_SUPPORTED
+Resources:
+  FlowLogRole:
+    Type: AWS::IAM::Role
+    DependsOn: FlowLogsGroup
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - vpc-flow-logs.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStrea
+            Resource: "*"
+  FlowLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: '7'
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/19
+      Tags:
+      - Key: Name
+        Value: "  VPC"
+      - Key: Role
+        Value: ''
+  VPCFlowLog:
+    Type: AWS::EC2::FlowLog
+    DependsOn: FlowLogRole
+    Properties:
+      DeliverLogsPermissionArn:
+        Fn::GetAtt:
+        - FlowLogRole
+        - Arn
+      LogGroupName:
+        Ref: FlowLogsGroup
+      ResourceId:
+        Ref: VPC
+      ResourceType: VPC
+      TrafficType: ALL
+  PrivRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: " Private Route Table"
+      - Key: Role
+        Value: Private Internal Traffic
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: " Public Route Table"
+      - Key: Role
+        Value: Public Traffic
+  PubSubnetA:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - a
+      VpcId:
+        Ref: VPC
+      CidrBlock: 10.0.0.0/24
+      Tags:
+      - Key: Name
+        Value: "-Public-A"
+      - Key: Role
+        Value: Public
+  AttachPubSubnet:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PubSubnetA
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: PubSubnetA
+  PubSubnetB:
+    Type: AWS::EC2::Subnet
+    DependsOn: PubSubnetA
+    Properties:
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - b
+      VpcId:
+        Ref: VPC
+      CidrBlock: 10.0.1.0/24
+      Tags:
+      - Key: Name
+        Value: "-Public-B"
+      - Key: Role
+        Value: Public
+  AttachPubSubnetB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PubSubnetB
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: PubSubnetB
+  PrivSubnetA:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - a
+      VpcId:
+        Ref: VPC
+      CidrBlock: 10.0.3.0/24
+      Tags:
+      - Key: Name
+        Value: "-Priv-A"
+      - Key: Role
+        Value: Private
+  AttachPrivSubnetA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PrivSubnetA
+    Properties:
+      RouteTableId:
+        Ref: PrivRouteTable
+      SubnetId:
+        Ref: PrivSubnetA
+  PrivSubnetB:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - b
+      VpcId:
+        Ref: VPC
+      CidrBlock: 10.0.4.0/24
+      Tags:
+      - Key: Name
+        Value: "-Priv-B"
+      - Key: Role
+        Value: Private
+  AttachPrivSubnetB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: PrivSubnetB
+    Properties:
+      RouteTableId:
+        Ref: PrivRouteTable
+      SubnetId:
+        Ref: PrivSubnetB
+  VPCIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: VPC-IGW
+  AttachIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn: VPCIGW
+    Properties:
+      InternetGatewayId:
+        Ref: VPCIGW
+      VpcId:
+        Ref: VPC
+  IGWRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: VPCIGW
+      RouteTableId:
+        Ref: PublicRouteTable
+  WSLoadBal:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: WebALBSecurityGroup
+    Properties:
+      Subnets:
+      - Ref: PubSubnetA
+      - Ref: PubSubnetB
+      SecurityGroups:
+      - Ref: WebALBSecurityGroup
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn:
+          Ref: WSTargetGroup
+      LoadBalancerArn:
+        Ref: WSLoadBal
+      Port: '80'
+      Protocol: HTTP
+  WebALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access via port 80 locked down to the load balancer
+        + SSH access
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp:
+          Ref: SSHLocation
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      VpcId:
+        Ref: VPC
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access via port 80 locked down to the load balancer
+        + SSH access
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        SourceSecurityGroupId:
+          Fn::Select:
+          - 0
+          - Fn::GetAtt:
+            - WSLoadBal
+            - SecurityGroups
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp:
+          Ref: SSHLocation
+      VpcId:
+        Ref: VPC
+  WebServerGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: '900'
+      VPCZoneIdentifier:
+      - Ref: PubSubnetA
+      - Ref: PubSubnetB
+      LaunchConfigurationName:
+        Ref: WSLaunchConfig
+      MinSize: '1'
+      MaxSize: '10'
+      DesiredCapacity:
+        Ref: WebServerCapacity
+      TargetGroupARNs:
+      - Ref: WSTargetGroup
+      Tags:
+      - Key: Name
+        Value: Web Server
+        PropagateAtLaunch: 'true'
+  WSLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      InstanceType:
+        Ref: WebServerInstanceType
+      ImageId:
+        Ref: WebServerInstanceID
+      SecurityGroups:
+        [Ref: WebServerSecurityGroup]
+      KeyName:
+        Ref: KeyName
+  WSTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: "/index.php"
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId:
+        Ref: VPC
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: 'true'
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: '30'
+  WriteApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: WriteWebALBSecurityGroup
+    Properties:
+      Subnets:
+      - Ref: PubSubnetA
+      - Ref: PubSubnetB
+      SecurityGroups:
+      - Ref: WriteWebALBSecurityGroup
+  WriteALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn:
+          Ref: WriteTargetGroup
+      LoadBalancerArn:
+        Ref: WriteApplicationLoadBalancer
+      Port: '80'
+      Protocol: HTTP
+  WriteWebALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access via port 80 locked down to the load balancer
+        + SSH access
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp:
+          Ref: SSHLocation
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      VpcId:
+        Ref: VPC
+  WriteTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: "/index.php"
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId:
+        Ref: VPC
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: 'true'
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: '30'
+  WriteLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      InstanceType:
+       Ref: WriteServerInstanceType
+      ImageId:
+       Ref: WriteServerInstanceID
+      SecurityGroups:
+       [Ref: WebServerSecurityGroup]
+      KeyName:
+        Ref: KeyName
+      UserData:
+        Fn::Base64:
+          !Sub |
+            - service https start
+            - echo <?php
+            - /**
+            - * The base configuration for WordPress
+            - *
+            - * The wp-config.php creation script uses this file during the
+            - * installation. You don't have to use the web site, you can
+            - * copy this file to "wp-config.php" and fill in the values.
+            - *
+            - * This file contains the following configurations:
+            - *
+            - * * MySQL settings
+            - * * Secret keys
+            - * * Database table prefix
+            - * * ABSPATH
+            - *
+            - * @link https://codex.wordpress.org/Editing_wp-config.php
+            - *
+            - * @package WordPress
+            - */
+            - // ** MySQL settings - You can get this info from your web host ** //
+            - /** The name of the database for WordPress */
+            - define('DB_NAME', 'mydb');
+
+            - /** MySQL database username */
+            - define('DB_USER', 'admin');
+
+            - /** MySQL database password */
+            - define('DB_PASSWORD', 'Nn4rd58f');
+
+            - /** MySQL hostname */
+            - define('DB_HOST', 'Fn::GetAtt: DBInstance.Endpoint.Address');
+
+            - /** Database Charset to use in creating database tables. */
+            - define('DB_CHARSET', 'utf8mb4');
+
+            - /** The Database Collate type. Don't change this if in doubt. */
+            - define('DB_COLLATE', '');
+
+            - /**#@+
+            - * Authentication Unique Keys and Salts.
+            - *
+            - * Change these to different unique phrases!
+            - * You can generate these using the {@link https://api.wordpress.org/secret-key/1.1/salt/ WordPress.org secret-key service}
+            - * You can change these at any point in time to invalidate all existing cookies. This will force all users to have to log in again.
+            - *
+            - * @since 2.6.0
+            - */
+            - define('AUTH_KEY',         '=h0jj}oUYwp|?M-9k9fW(fsG}i$0c5(!)UqP:Xg(*LA,-^yE3RIghcDJ`8RvzjKk');
+            - define('SECURE_AUTH_KEY',  'QD(D@.j`/K$*d`Ty1RObeH)?4A1}T63CErbCW2>:JP>Ud3x[1hlZV&#do_fo&wuB');
+            - define('LOGGED_IN_KEY',    'E.-R6),29>uMa=/_=3,+/-^FSR#ObTz~es)Y>yB{(IctdGCmq0a cm(tit:cw9Z5');
+            - define('NONCE_KEY',        'lh+G|F9wEZrP4i)z`^S&{UM 9+;a2mc?2,Vu>:Cv$h<qs3[9ag03K@|KzPuCPqHC');
+            - define('AUTH_SALT',        '.NF},yxOG#S]Ie  XPz&jER^U9#aj;QuOE-Ju(|:o*YTSMkfWru.Zj$c4<-JPNlV');
+            - define('SECURE_AUTH_SALT', 'Z+S!Q*ti*%-RAcfgZ]rm=X%o<po/bX9r3di^Z`.wCdioKmDh58F^k5!-cPW>b/BA');
+            - define('LOGGED_IN_SALT',   'x(Gre~5yZ/@N2b{$eK@`I^@VtE<fJWS7ZTtclWX;r()>M:WbCAEW>6 ]&n-Om,DL');
+            - define('NONCE_SALT',       'x]n t>wRSEGV|OXD(-_j#R#SSg5|0]VOBSyX0g|i8ub|1M>Icf3Bt|JQc|Z`Hs`C');
+
+            - /**#@-*/
+
+            - /**
+            - * WordPress Database Table prefix.
+            - *
+            - * You can have multiple installations in one database if you give each
+            - * a unique prefix. Only numbers, letters, and underscores please!
+            - */
+            - $table_prefix  = 'wp_';
+
+            - /**
+            - * For developers: WordPress debugging mode.
+            - *
+            - * Change this to true to enable the display of notices during development.
+            - * It is strongly recommended that plugin and theme developers use WP_DEBUG
+            - * in their development environments.
+            - *
+            - * For information on other constants that can be used for debugging,
+            - * visit the Codex.
+            - *
+            - * @link https://codex.wordpress.org/Debugging_in_WordPress
+            - */
+            - define('WP_DEBUG', false);
+
+            - /* That's all, stop editing! Happy blogging. */
+
+            - /** Absolute path to the WordPress directory. */
+            - if ( !defined('ABSPATH') )
+            -        define('ABSPATH', dirname(__FILE__) . '/');
+
+            - /** Sets up WordPress vars and included files. */
+            - require_once(ABSPATH . 'wp-settings.php'); > /var/www/html/wp-config.php
+            - chown apache:apache /var/www/html/wp-config.php
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet Group for RDS DB's
+      DBSubnetGroupName: Survival Website RDS Subnet Group 2
+      SubnetIds:
+      - Ref: PrivSubnetA
+      - Ref: PrivSubnetB
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open database for access to Ec2
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '3306'
+        ToPort: '3306'
+        SourceSecurityGroupId:
+          Ref: WebServerSecurityGroup
+      VpcId:
+        Ref: VPC
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DependsOn: DBSecurityGroup
+    Properties:
+      PubliclyAccessible: 'false'
+      DBSnapshotIdentifier:
+        Ref: DatabaseSnapshotID
+      DBSubnetGroupName:
+        Ref: DBSubnetGroup
+      Engine: MySQL
+      MultiAZ:
+        Ref: MultiAZDatabase
+      DBInstanceClass:
+        Ref: DBClass
+      VPCSecurityGroups:
+      - Ref: DBSecurityGroup
+  WSDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: Z1NATJV8KL7M7I
+      Name: fulgentengineering.com
+      Type: A
+      AliasTarget:
+            DNSName: Fn::GetAtt WSLoadBal.CanonicalHostedZoneNameID
+            HostedZoneId: Fn::GetAtt WSLoadBal.DNSName
+
+Outputs:
+  WSWebsiteURL:
+    Value:
+      Fn::Join:
+      - ''
+      - - http://
+        - Fn::GetAtt:
+          - WSLoadBal
+          - DNSName
+        - ''
+    Description: WordPress Website
+  WSLoadBalancer:
+    Description: Webserver Load Balancer
+    Value:
+      Ref: WSLoadBal
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-WSLoadBal"
+  WriteWebsiteURL:
+    Value:
+      Fn::Join:
+      - ''
+      - - http://
+        - Fn::GetAtt:
+          - WriteApplicationLoadBalancer
+          - DNSName
+        - ''
+    Description: WordPress Website
+  WriteLoadBalancer:
+    Description: Write Server Load Balancer
+    Value:
+      Ref: WriteApplicationLoadBalancer
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-WriteApplicationLoadBalancer"
+
