@@ -1,6 +1,6 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "Master temdplate that includes nested templates",
+    "Description": "Master template that includes nested templates",
     "Metadata": {
         "AWS::CloudFormation::Interface": {
             "ParameterGroups": [
