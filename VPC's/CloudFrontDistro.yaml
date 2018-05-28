@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Creates a VPC that each contain public and private subnets in 2 AZ's subnets.  Also creates an S3 bucket for account Clouddtrail logging and a Cloudtrail log. "
+
+# Creation CloudFront Distribution
+Resources:
+  CloudFrontS3Bucket:
+    DeletionPolicy: Retain
+    Type: 'AWS::S3::Bucket'
+    Properties:
+        BucketName: rtgs-prod-wp-media-cloudfront
+  myDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig: 
+        Origins:
+          - DomainName:
+              Fn::GetAtt:
+              - CloudFrontS3Bucket
+              - DomainName
+          - Id: "S3"
+          - S3OriginConfig:
+              OriginAccessIdentity:
+                Fn::Join:
+                - ''
+                - - origin-access-identity/cloudfront/
+                  - Ref:  cloudfrontoriginaccessidentity
+        Enabled: 'true'
+        DefaultCacheBehavior:
+          TargetOriginId: CloudFrontS3Bucket
+          ForwardedValues: 
+              QueryString: 'false'
+          AllowedMethods:
+          - DELETE
+          - GET
+          - HEAD
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          ViewerProtocolPolicy: redirect-to-https
+        PriceClass: PriceClass_All
+
+  cloudfrontoriginaccessidentity:
+        Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
+        Properties:
+          CloudFrontOriginAccessIdentityConfig:
+            Comment: rtgs-prod-wp-media-cloudfront
+
+  
