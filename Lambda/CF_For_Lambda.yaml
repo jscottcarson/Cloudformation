@@ -1,0 +1,130 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "",
+	"Parameters": {
+		"S3VPCFlowLogsBucket": {
+			"Type": "String",
+			"Default": "jhc-jeff",
+			"Description": "Enter the name of the bucket where the VPC Flow log files are to be stored. This Bucket will be created. Rules for bucket naming: http://amzn.to/1QXbleZ. "
+		},
+        "VPCName": {
+			"Type": "String",
+			"Default": "",
+			"Description": "Enter the name of the VPC that will generate these logs. This will get created as a folder in the S3 bucket above."
+		},
+		"CloudWatchLogGroup": {
+			"Type": "String",
+			"Default": "TestVPCFlowLogs",
+			"Description": "Enter the name of the existing CloudWatch Log Group that contains the Flow Logs for this VPC."
+		}        
+	},
+	"Resources": {
+        "FlowLogS3Bucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties" : {
+                    "BucketName": {"Ref": "S3VPCFlowLogsBucket" }
+            }
+        },
+		"FlowLogCEFConversionFunction": {
+			"Type": "AWS::Lambda::Function",
+            "DependsOn": "FlowLogS3Bucket",
+			"Properties": {
+				"Description": "",
+				"Handler": "index.lambda_handler",
+				"Role": { "Fn::ImportValue" : "LambdaRoleForArcSight"},
+				"Code": {
+					"ZipFile": {
+						"Fn::Join": ["", ["import boto3\n",
+                            "import logging\n",
+                            "import json\n",
+                            "import gzip\n",
+                            "import urllib\n",
+                            "import time\n",
+                            "from StringIO import StringIO\n\r",
+                            "logger = logging.getLogger()\n",
+                            "logger.setLevel(logging.INFO)\n\r",
+                            "s3 = boto3.client('s3')\n\r",
+                            "def lambda_handler(event, context):\n\r",
+                            "    #set the name of the S3 bucket. Set the VPC name as the folderS3 variable and attach a desired prefix.\n",
+                            "    bucketS3 =", "\"",{"Ref": "S3VPCFlowLogsBucket"},"\"\n",
+                            "    folderS3 =", "\"",{"Ref": "VPCName"},"\"\n",
+                            "    prefixS3 = 'VPCFlowLogs_'\n\r",
+
+                            "    #Retrieve the CloudWatch log data\n",
+                            "    outEvent = str(event['awslogs']['data'])\n\r",
+
+                            "    #decode and unzip the log data\n",
+                            "    outEvent = gzip.GzipFile(fileobj=StringIO(outEvent.decode('base64','strict'))).read()\n\r",
+
+                            "    #convert the log data from JSON into a dictionary\n",
+                            "    cleanEvent = json.loads(outEvent)\n\r",
+
+                            "    #create a temp file\n",
+							"    tempFile = open('/tmp/file', 'w+')\n\r",
+							
+							"    #create a tmp file for the trigger file\n",
+							"    tempFileTrig = open('/tmp/trigger', 'w+')\n\r",
+
+                            "    #Create the trigger file for ArcSight Folder Follower connector in S3 file key\n",
+                            "    keytrigger = folderS3 + '/' + prefixS3 + \"trigger.cef_ready\"\n\r",
+ 
+                            "    #Create the S3 File Key\n",
+							"    key = folderS3 + '/' + prefixS3 + str(int(time.time())) + \".cef\"\n\r",
+
+							"    #Create the S3 File Key\n",
+    						"    key1 = folderS3 + '/' + prefixS3 + \"trigger.cef_ready\"\n\r",
+							
+                            "    #loop through the events line by line\n",
+                            "    for t in cleanEvent['logEvents']:\n\r",
+
+                            "    #Transform the data and store it in the temp file. Append the VPC name, elastic network interface, and other identifying information.\n",
+                            "        tempFile.write(\"CEF:0|AWS CloudWatch|FlowLogs|1.0|100|\" + folderS3 + \"0\" + \"|src=\" + str(t['extractedFields']['srcaddr']) + \" spt=\" + str(t['extractedFields']['srcport']) + \" dst=\" + str(t['extractedFields']['dstaddr']) + \" dpt=\" + str(t['extractedFields']['dstport']) + \" proto=\" + str(t['extractedFields']['protocol']) + \" start=\" + str(t['extractedFields']['start']) + \" end=\" + str(t['extractedFields']['end']) + \" out=\" + str(t['extractedFields']['bytes']))\n\r",
+
+                            "    #close the temp file\n",
+							"    tempFile.close()\n\r",
+							
+							"    #open a tmp writer for the trigger file\n",
+							"    tempFileTrig.write(\"Trigger File for ArcSight Folder Follower connector\")\n",
+                            "    tempFileTrig.close()\n\r",
+
+                            "    #write the files to s3\n",
+							"    s3Results = s3.upload_file('/tmp/file', bucketS3, key)\n",
+							"    s3Trig = s3.upload_file('/tmp/trigger', bucketS3, key1)\n",
+							"    print s3Results\n",
+							"    print s3Trig\n\r"]]
+					}
+				},
+				"Runtime": "python2.7",
+				"MemorySize": "512",
+				"Timeout": "300"
+			}
+		},
+		"StreamLogsToLambda": {
+			"Type": "AWS::Logs::SubscriptionFilter",
+			"DependsOn" : "LambdaInvokePermission",
+			"Properties": {
+				"DestinationArn": {
+					"Fn::GetAtt": ["FlowLogCEFConversionFunction", "Arn"]
+				},
+				"FilterPattern": "[version, account_id, interface_id, srcaddr != \" - \", dstaddr != \" - \", srcport != \" - \", dstport!= \" - \", protocol, packets, bytes, start, end, action, log_status]",
+				"LogGroupName": {
+					"Ref": "CloudWatchLogGroup"
+				}
+			}
+		},
+		"LambdaInvokePermission": {
+			"Type": "AWS::Lambda::Permission",
+			"Properties": {
+				"FunctionName": {
+					"Fn::GetAtt": ["FlowLogCEFConversionFunction", "Arn"]
+				},
+				"Action": "lambda:*",
+				"Principal": "logs.us-east-1.amazonaws.com",
+				"SourceAccount": {
+					"Ref": "AWS::AccountId"
+				}
+			}
+		}
+		
+	}
+}
