@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an SNS Topic for a deployed application
+
+Parameters:
+    ApplicationName:
+        Type: 'String'
+        Description: 'Enter the name of the application that this SNS topic will serve. Please enter it as the URL and the application. Example: usgs.gov-science'
+   # PublicSubnetA:
+       # Type: 'AWS::EC2::Subnet::Id'
+     #   Description: Choose the public subnets to attach to the load balancers
+Resources:
+    SNSTopic:
+      Type: "AWS::SNS::Topic"
+      Properties: 
+          DisplayName: !Join [ "-", ["SNS Topic for a deployed application", !Ref ApplicationName ]]
+          TopicName: !Ref ApplicationName

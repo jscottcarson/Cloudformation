@@ -1,0 +1,379 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Production Load Balancers for Prod_WAF
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: Load Balancer Template
+        Parameters:
+          - ALBStackName
+      - 
+        Label:
+          default: Application 1
+        Parameters:
+          - Application1URL
+          - Application1PathPattern
+     
+    ParameterLabels:
+        Application1URL:
+          default: "What is the URL for application 1"
+        Application1PathPattern:
+          default: "What is the desired ALB Path Pattern for Application 1"
+
+Parameters:
+    ALBStackName:
+      Type: String
+      Description: Enter the name of the ALB Stack
+    Application1URL:
+        Type: String
+        Description: Enter the URL of the application 
+    Application1PathPattern:
+        Type: String
+        Description: Enter the path pattern that you want applied to the ALB listener rule. 
+   
+  
+Resources:
+
+# USGS.GOV Application
+    ALBListenerRule1:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            Actions:
+            - Type: forward
+              TargetGroupArn:
+                !Ref Application1TG
+            Conditions:
+            - Field: path-pattern
+              Values:
+              - !Ref Application1PathPattern
+            ListenerArn:
+                !Ref ALBListener1
+            Priority: 1
+    ALBListener1:
+        Type: 'AWS::ElasticLoadBalancingV2::Listener'
+        Properties:
+            DefaultActions:
+                - 
+                    Type: forward
+                    TargetGroupArn:
+                        !Ref Application1TG
+            LoadBalancerArn:
+               Fn::ImportValue: 
+                  !Sub "${ALBStackName}-ApplicationLoadBalancer1"
+            Port: '80'
+            Protocol: HTTP  
+    Application1TG:
+        Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+        Properties:
+            HealthCheckPath: /
+            HealthCheckIntervalSeconds: 10
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 5
+            VpcId:
+                Fn::ImportValue: !Sub ${ALBStackName}-VPCID
+            TargetGroupAttributes:
+                - 
+                    Key: stickiness.enabled
+                    Value: 'true'
+                - 
+                    Key: stickiness.type
+                    Value: lb_cookie
+                - 
+                    Key: stickiness.lb_cookie.duration_seconds
+                    Value: '30'
+            Tags:
+                -            
+                    Key: Name
+                    Value: !Ref Application1URL
+        
+    ALBListenerRule2:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            Actions:
+            - Type: forward
+              TargetGroupArn:
+                !Ref Application2TG
+            Conditions:
+            - Field: path-pattern
+              Values:
+              - !Ref Application1PathPattern
+            ListenerArn:
+                !Ref ALBListener2
+            Priority: 1
+    ALBListener2:
+        Type: 'AWS::ElasticLoadBalancingV2::Listener'
+        Properties:
+            DefaultActions:
+                - 
+                    Type: forward
+                    TargetGroupArn:
+                        !Ref Application2TG
+            LoadBalancerArn:
+               Fn::ImportValue: 
+                  !Sub "${ALBStackName}-ApplicationLoadBalancer2"
+            Port: '80'
+            Protocol: HTTP  
+    Application2TG:
+        Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+        Properties:
+            HealthCheckPath: /
+            HealthCheckIntervalSeconds: 10
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 5
+            VpcId:
+                Fn::ImportValue: !Sub ${ALBStackName}-VPCID
+            TargetGroupAttributes:
+                - 
+                    Key: stickiness.enabled
+                    Value: 'true'
+                - 
+                    Key: stickiness.type
+                    Value: lb_cookie
+                - 
+                    Key: stickiness.lb_cookie.duration_seconds
+                    Value: '30'
+            Tags:
+                -            
+                    Key: Name
+                    Value: !Join
+                             - "-"
+                             - - Fn::ImportValue: !Sub ${ALBStackName}-CustomerName 
+                               - TargetGroup2      
+                      
+    ALBListenerRule3:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            Actions:
+            - Type: forward
+              TargetGroupArn:
+                !Ref Application3TG
+            Conditions:
+            - Field: path-pattern
+              Values:
+              - !Ref Application1PathPattern
+            ListenerArn:
+                !Ref ALBListener3
+            Priority: 1
+    ALBListener3:
+        Type: 'AWS::ElasticLoadBalancingV2::Listener'
+        Properties:
+            DefaultActions:
+                - 
+                    Type: forward
+                    TargetGroupArn:
+                        !Ref Application3TG
+            LoadBalancerArn:
+               Fn::ImportValue: 
+                  !Sub "${ALBStackName}-ApplicationLoadBalancer3"
+            Port: '80'
+            Protocol: HTTP
+    Application3TG:
+        Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+        Properties:
+            HealthCheckPath: /
+            HealthCheckIntervalSeconds: 10
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 5
+            VpcId:
+                Fn::ImportValue: !Sub ${ALBStackName}-VPCID
+            TargetGroupAttributes:
+                - 
+                    Key: stickiness.enabled
+                    Value: 'true'
+                - 
+                    Key: stickiness.type
+                    Value: lb_cookie
+                - 
+                    Key: stickiness.lb_cookie.duration_seconds
+                    Value: '30'
+            Tags:
+                -            
+                    Key: Name
+                    Value: !Join
+                             - "-"
+                             - - Fn::ImportValue: !Sub ${ALBStackName}-CustomerName 
+                               - TargetGroup3    
+                         
+    ALBListenerRule4:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            Actions:
+            - Type: forward
+              TargetGroupArn:
+                !Ref Application4TG
+            Conditions:
+            - Field: path-pattern
+              Values:
+              - !Ref Application1PathPattern
+            ListenerArn:
+                !Ref ALBListener4
+            Priority: 1
+    ALBListener4:
+        Type: 'AWS::ElasticLoadBalancingV2::Listener'
+        Properties:
+            DefaultActions:
+                - 
+                    Type: forward
+                    TargetGroupArn:
+                        !Ref Application4TG
+            LoadBalancerArn:
+               Fn::ImportValue: 
+                  !Sub "${ALBStackName}-ApplicationLoadBalancer4"
+            Port: '80'
+            Protocol: HTTP
+    Application4TG:
+        Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+        Properties:
+            HealthCheckPath: /
+            HealthCheckIntervalSeconds: 10
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 5
+            VpcId:
+                Fn::ImportValue: !Sub ${ALBStackName}-VPCID
+            TargetGroupAttributes:
+                - 
+                    Key: stickiness.enabled
+                    Value: 'true'
+                - 
+                    Key: stickiness.type
+                    Value: lb_cookie
+                - 
+                    Key: stickiness.lb_cookie.duration_seconds
+                    Value: '30'
+            Tags:
+                -            
+                    Key: Name
+                    Value: !Join
+                             - "-"
+                             - - Fn::ImportValue: !Sub ${ALBStackName}-CustomerName 
+                               - TargetGroup4   
+                    
+    ALBListenerRule5:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            Actions:
+            - Type: forward
+              TargetGroupArn:
+                !Ref Application5TG
+            Conditions:
+            - Field: path-pattern
+              Values:
+              - !Ref Application1PathPattern
+            ListenerArn:
+                !Ref ALBListener5
+            Priority: 1
+    ALBListener5:
+        Type: 'AWS::ElasticLoadBalancingV2::Listener'
+        Properties:
+            DefaultActions:
+                - 
+                    Type: forward
+                    TargetGroupArn:
+                        !Ref Application5TG
+            LoadBalancerArn:
+               Fn::ImportValue:  
+                  !Sub "${ALBStackName}-ApplicationLoadBalancer5"
+            Port: '80'
+            Protocol: HTTP
+    Application5TG:
+        Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+        Properties:
+            HealthCheckPath: /
+            HealthCheckIntervalSeconds: 10
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 5
+            VpcId:
+                Fn::ImportValue: !Sub ${ALBStackName}-VPCID
+            TargetGroupAttributes:
+                - 
+                    Key: stickiness.enabled
+                    Value: 'true'
+                - 
+                    Key: stickiness.type
+                    Value: lb_cookie
+                - 
+                    Key: stickiness.lb_cookie.duration_seconds
+                    Value: '30'
+            Tags:
+                -            
+                    Key: Name
+                    Value: !Join
+                             - "-"
+                             - - Fn::ImportValue: !Sub ${ALBStackName}-CustomerName 
+                               - TargetGroup5   
+    
+    ALBListenerRule6:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            Actions:
+            - Type: forward
+              TargetGroupArn:
+                !Ref Application6TG
+            Conditions:
+            - Field: path-pattern
+              Values:
+              - !Ref Application1PathPattern
+            ListenerArn:
+                !Ref ALBListener6
+            Priority: 1
+    ALBListener6:
+        Type: 'AWS::ElasticLoadBalancingV2::Listener'
+        Properties:
+            DefaultActions:
+                - 
+                    Type: forward
+                    TargetGroupArn:
+                        !Ref Application6TG
+            LoadBalancerArn:
+               Fn::ImportValue: 
+                  !Sub "${ALBStackName}-ApplicationLoadBalancer6"
+            Port: '80'
+            Protocol: HTTP
+    Application6TG:
+        Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+        Properties:
+            HealthCheckPath: /
+            HealthCheckIntervalSeconds: 10
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Port: 80
+            Protocol: HTTP
+            UnhealthyThresholdCount: 5
+            VpcId:
+                Fn::ImportValue: !Sub ${ALBStackName}-VPCID
+            TargetGroupAttributes:
+                - 
+                    Key: stickiness.enabled
+                    Value: 'true'
+                - 
+                    Key: stickiness.type
+                    Value: lb_cookie
+                - 
+                    Key: stickiness.lb_cookie.duration_seconds
+                    Value: '30'
+            Tags:
+                -            
+                    Key: Name
+                    Value: !Join
+                             - "-"
+                             - - Fn::ImportValue: !Sub ${ALBStackName}-CustomerName 
+                               - TargetGroup6   
+
+
+    

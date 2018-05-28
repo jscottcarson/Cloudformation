@@ -1,0 +1,433 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Production Load Balancers for Prod_WAF
+Parameters:
+    VPCName:
+        Type: 'AWS::EC2::VPC::Id'
+        Description: 'Select A VPC to launch the Load Balancers in to '
+    PublicSubnetA:
+        Type: 'AWS::EC2::Subnet::Id'
+        Description: Choose the public subnets to attach to the load balancers
+    PublicSubnetB:
+        Type: 'AWS::EC2::Subnet::Id'
+        Description: Choose the public subnets to attach to the load balancers
+    CustomerName:
+        Type: String
+        Description: Enter the name of the customer that this will be deployed for
+    ApplicationName:
+        Type: 'String'
+        Description: 'Enter the name of the application that this SNS topic will serve'
+    URL:
+        Type: String
+        Description: Enter the URL that you are configuring these Load Balancers for
+    Weight:
+        Type: Number
+        Description: Enter the desired weight to be applied evenly across all ALB's. Should be the number of ALB's divided 255.
+    PathPattern:
+        Type: String
+        Description: Enter the path pattern that you want applied to the ALB listener rule. 
+
+Resources:
+
+# Creates one Security Group with ports 80 and 443 open for attachment to all ALB's created in this template
+    ALBSecurityGroup:
+        Type: 'AWS::EC2::SecurityGroup'
+        Properties:
+            GroupDescription: 'Enable HTTP & HTTPS access via port 80 & 443'
+            SecurityGroupIngress:
+                - 
+                    IpProtocol: tcp
+                    FromPort: '80'
+                    ToPort: '80'
+                    CidrIp: 0.0.0.0/0
+                - 
+                    IpProtocol: tcp
+                    FromPort: '443'
+                    ToPort: '443'
+                    CidrIp: 0.0.0.0/0
+            VpcId:
+                !Ref VPCName
+            Tags:
+                - 
+                    Key: Name
+                    Value:
+                        !Ref CustomerName
+    
+### Creates one full ALB setup. To include (in order of appearance):
+# 1. Route53 Healthcheck (Healthcheck1)
+# 2. Route53 Weighted Alias record with the healthcheck1 attached
+# 3. ALB with security group above attached
+# 4. Associated listeners for ALB
+# 5. Associated Target group 
+
+# To add or subtract the number of ALB 'sets' created, either copy and paste or delete once of the full sections below. If adding, be sure to update the number found at the end of resources. 
+    HealthCheck1: 
+      Type: "AWS::Route53::HealthCheck"
+      DependsOn: ApplicationLoadBalancer1
+      Properties: 
+        HealthCheckConfig: 
+          Type: "HTTP"
+          FullyQualifiedDomainName: 
+              'Fn::GetAtt':
+                  - ApplicationLoadBalancer1
+                  - DNSName
+          FailureThreshold: "3"
+          MeasureLatency: "true"
+          RequestInterval: "30"
+          ResourcePath: "/"
+        HealthCheckTags: 
+          - 
+            Key: "Name"
+            Value: "ALB1-Healthcheck"
+    Record1:
+        Type: AWS::Route53::RecordSetGroup
+        Properties:
+            HostedZoneName: !Join  [ "", [ !Ref URL, "."]]
+            Comment: Zone apex alias targeted to Application Load Balancer 1.
+            RecordSets:
+            - Name: !Join  [ "", [ !Ref URL, "."]]
+              Type: A
+              SetIdentifier: ALB1
+              HealthCheckId: !Ref HealthCheck1
+              Weight: !Ref Weight
+              AliasTarget:
+                HostedZoneId: !GetAtt ApplicationLoadBalancer1.CanonicalHostedZoneID
+                DNSName: !GetAtt ApplicationLoadBalancer1.DNSName
+    ApplicationLoadBalancer1:
+        Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+        Properties:
+            SecurityGroups:
+                - 
+                    !Ref ALBSecurityGroup
+            Subnets:
+              - !Ref PublicSubnetA
+              - !Ref PublicSubnetB
+            Tags:
+                - 
+                    Key: Name
+                    Value: !Join  [ "-", [ !Ref CustomerName, ALB1 ] ]     
+                      
+
+    HealthCheck2: 
+      Type: "AWS::Route53::HealthCheck"
+      DependsOn: ApplicationLoadBalancer2
+      Properties: 
+        HealthCheckConfig: 
+          Type: "HTTP"
+          FullyQualifiedDomainName: 
+              'Fn::GetAtt':
+                  - ApplicationLoadBalancer2
+                  - DNSName
+          FailureThreshold: "3"
+          MeasureLatency: "true"
+          RequestInterval: "30"
+          ResourcePath: "/"
+        HealthCheckTags: 
+          - 
+            Key: "Name"
+            Value: "ALB2-Healthcheck"
+    Record2:
+        Type: AWS::Route53::RecordSetGroup
+        Properties:
+            HostedZoneName: !Join  [ "", [ !Ref URL, "."]]
+            Comment: Zone apex alias targeted to Application Load Balancer 2.
+            RecordSets:
+            - Name: !Join  [ "", [ !Ref URL, "."]]
+              Type: A
+              SetIdentifier: ALB2
+              HealthCheckId: !Ref HealthCheck2
+              Weight: !Ref Weight
+              AliasTarget:
+                HostedZoneId: !GetAtt ApplicationLoadBalancer2.CanonicalHostedZoneID
+                DNSName: !GetAtt ApplicationLoadBalancer2.DNSName
+    ApplicationLoadBalancer2:
+        Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+        Properties:
+            SecurityGroups:
+                - 
+                    !Ref ALBSecurityGroup
+            Subnets:
+              - !Ref PublicSubnetA
+              - !Ref PublicSubnetB
+            Tags:
+                - 
+                    Key: Name
+                    Value: !Join  [ "-", [ !Ref CustomerName, ALB2 ] ]                       
+   
+      
+    HealthCheck3: 
+      Type: "AWS::Route53::HealthCheck"
+      DependsOn: ApplicationLoadBalancer3
+      Properties: 
+        HealthCheckConfig: 
+          Type: "HTTP"
+          FullyQualifiedDomainName: 
+              'Fn::GetAtt':
+                  - ApplicationLoadBalancer3
+                  - DNSName
+          FailureThreshold: "3"
+          MeasureLatency: "true"
+          RequestInterval: "30"
+          ResourcePath: "/"
+        HealthCheckTags: 
+          - 
+            Key: "Name"
+            Value: "ALB3-Healthcheck"
+    Record3:
+        Type: AWS::Route53::RecordSetGroup
+        Properties:
+            HostedZoneName: !Join  [ "", [ !Ref URL, "."]]
+            Comment: Zone apex alias targeted to Application Load Balancer 3.
+            RecordSets:
+            - Name: !Join  [ "", [ !Ref URL, "."]]
+              Type: A
+              SetIdentifier: ALB3
+              HealthCheckId: !Ref HealthCheck3
+              Weight: !Ref Weight
+              AliasTarget:
+                HostedZoneId: !GetAtt ApplicationLoadBalancer3.CanonicalHostedZoneID
+                DNSName: !GetAtt ApplicationLoadBalancer3.DNSName
+    ApplicationLoadBalancer3:
+        Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+        Properties:
+            SecurityGroups:
+                - 
+                    !Ref ALBSecurityGroup
+            Subnets:
+              - !Ref PublicSubnetA
+              - !Ref PublicSubnetB
+            Tags:
+                - 
+                    Key: Name
+                    Value: !Join  [ "-", [ !Ref CustomerName, ALB3 ] ]                       
+    
+    
+    HealthCheck4: 
+      Type: "AWS::Route53::HealthCheck"
+      DependsOn: ApplicationLoadBalancer4
+      Properties: 
+        HealthCheckConfig: 
+          Type: "HTTP"
+          FullyQualifiedDomainName: 
+              'Fn::GetAtt':
+                  - ApplicationLoadBalancer4
+                  - DNSName
+          FailureThreshold: "3"
+          MeasureLatency: "true"
+          RequestInterval: "30"
+          ResourcePath: "/"
+        HealthCheckTags: 
+          - 
+            Key: "Name"
+            Value: "ALB4-Healthcheck"
+    Record4:
+        Type: AWS::Route53::RecordSetGroup
+        Properties:
+            HostedZoneName: !Join  [ "", [ !Ref URL, "."]]
+            Comment: Zone apex alias targeted to Application Load Balancer 4.
+            RecordSets:
+            - Name: !Join  [ "", [ !Ref URL, "."]]
+              Type: A
+              SetIdentifier: ALB4
+              HealthCheckId: !Ref HealthCheck4
+              Weight: !Ref Weight
+              AliasTarget:
+                HostedZoneId: !GetAtt ApplicationLoadBalancer4.CanonicalHostedZoneID
+                DNSName: !GetAtt ApplicationLoadBalancer4.DNSName
+    ApplicationLoadBalancer4:
+        Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+        Properties:
+            SecurityGroups:
+                - 
+                    !Ref ALBSecurityGroup
+            Subnets:
+              - !Ref PublicSubnetA
+              - !Ref PublicSubnetB
+            Tags:
+                - 
+                    Key: Name
+                    Value: !Join  [ "-", [ !Ref CustomerName, ALB4 ] ]                       
+   
+    HealthCheck5: 
+      Type: "AWS::Route53::HealthCheck"
+      DependsOn: ApplicationLoadBalancer5
+      Properties: 
+        HealthCheckConfig: 
+          Type: "HTTP"
+          FullyQualifiedDomainName: 
+              'Fn::GetAtt':
+                  - ApplicationLoadBalancer5
+                  - DNSName
+          FailureThreshold: "3"
+          MeasureLatency: "true"
+          RequestInterval: "30"
+          ResourcePath: "/"
+        HealthCheckTags: 
+          - 
+            Key: "Name"
+            Value: "ALB5-Healthcheck"
+    Record5:
+        Type: AWS::Route53::RecordSetGroup
+        Properties:
+            HostedZoneName: !Join  [ "", [ !Ref URL, "."]]
+            Comment: Zone apex alias targeted to Application Load Balancer 5.
+            RecordSets:
+            - Name: !Join  [ "", [ !Ref URL, "."]]
+              Type: A
+              SetIdentifier: ALB5
+              HealthCheckId: !Ref HealthCheck5
+              Weight: !Ref Weight
+              AliasTarget:
+                HostedZoneId: !GetAtt ApplicationLoadBalancer5.CanonicalHostedZoneID
+                DNSName: !GetAtt ApplicationLoadBalancer5.DNSName
+    ApplicationLoadBalancer5:
+        Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+        Properties:
+            SecurityGroups:
+                - 
+                    !Ref ALBSecurityGroup
+            Subnets:
+              - !Ref PublicSubnetA
+              - !Ref PublicSubnetB
+            Tags:
+                - 
+                    Key: Name
+                    Value: !Join  [ "-", [ !Ref CustomerName, ALB5 ] ]                       
+  
+    HealthCheck6: 
+      Type: "AWS::Route53::HealthCheck"
+      DependsOn: ApplicationLoadBalancer6
+      Properties: 
+        HealthCheckConfig: 
+          Type: "HTTP"
+          FullyQualifiedDomainName: 
+              'Fn::GetAtt':
+                  - ApplicationLoadBalancer6
+                  - DNSName
+          FailureThreshold: "3"
+          MeasureLatency: "true"
+          RequestInterval: "30"
+          ResourcePath: "/"
+        HealthCheckTags: 
+          - 
+            Key: "Name"
+            Value: "ALB6-Healthcheck"
+    Record6:
+        Type: AWS::Route53::RecordSetGroup
+        Properties:
+            HostedZoneName: !Join  [ "", [ !Ref URL, "."]]
+            Comment: Zone apex alias targeted to Application Load Balancer 6.
+            RecordSets:
+            - Name: !Join  [ "", [ !Ref URL, "."]]
+              Type: A
+              SetIdentifier: ALB6
+              HealthCheckId: !Ref HealthCheck6
+              Weight: !Ref Weight
+              AliasTarget:
+                HostedZoneId: !GetAtt ApplicationLoadBalancer6.CanonicalHostedZoneID
+                DNSName: !GetAtt ApplicationLoadBalancer6.DNSName
+    ApplicationLoadBalancer6:
+        Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+        Properties:
+            SecurityGroups:
+                - 
+                    !Ref ALBSecurityGroup
+            Subnets:
+              - !Ref PublicSubnetA
+              - !Ref PublicSubnetB
+            Tags:
+                - 
+                    Key: Name
+                    Value: !Join  [ "-", [ !Ref CustomerName, ALB6 ] ]                       
+   
+
+Outputs:
+
+# Export the Load Balancers for import by other tempalates
+    ApplicationLoadBalancer1:
+        Description: ApplicationLoadBalancer1
+        Value:
+            Ref: ApplicationLoadBalancer1
+        Export:
+            Name:
+                'Fn::Sub': '${AWS::StackName}-ApplicationLoadBalancer1'
+    ApplicationLoadBalancer2:
+        Description: ApplicationLoadBalancer2
+        Value:
+            Ref: ApplicationLoadBalancer2
+        Export:
+            Name:
+                'Fn::Sub': '${AWS::StackName}-ApplicationLoadBalancer2'
+    ApplicationLoadBalancer3:
+        Description: ApplicationLoadBalancer3
+        Value:
+            Ref: ApplicationLoadBalancer3
+        Export:
+            Name:
+                'Fn::Sub': '${AWS::StackName}-ApplicationLoadBalancer3'
+    ApplicationLoadBalancer4:
+        Description: ApplicationLoadBalancer4
+        Value:
+            Ref: ApplicationLoadBalancer4
+        Export:
+            Name:
+                'Fn::Sub': '${AWS::StackName}-ApplicationLoadBalancer4'
+    ApplicationLoadBalancer5:
+        Description: ApplicationLoadBalancer5
+        Value:
+            Ref: ApplicationLoadBalancer5
+        Export:
+            Name:
+                'Fn::Sub': '${AWS::StackName}-ApplicationLoadBalancer5'
+    ApplicationLoadBalancer6:
+        Description: ApplicationLoadBalancer6
+        Value:
+            Ref: ApplicationLoadBalancer6
+        Export:
+            Name:
+                'Fn::Sub': '${AWS::StackName}-ApplicationLoadBalancer6'
+# Export the Application name and the Customer Name for import by other templates
+
+    CustomerName:
+        Description: Customer Name
+        Value:
+            Ref: CustomerName
+        Export:
+            Name:
+                'Fn::Sub': '${AWS::StackName}-CustomerName'
+    ApplicationName:
+        Description: Application Name
+        Value:
+            Ref: ApplicationName
+        Export:
+            Name:
+                'Fn::Sub': '${AWS::StackName}-ApplicationName'
+
+# Export the ALB Stack Name for import in other templates
+    StackName:
+        Description: ALB Stack Name
+        Value:
+            Ref: AWS::StackName
+        Export:
+            Name:
+                'Fn::Sub': 'ALBStack'
+
+# Export the VPC chosen above
+    VPCID:
+        Description: Target VPC Name
+        Value:
+            Ref: VPCName
+        Export:
+            Name:
+                'Fn::Sub': '${AWS::StackName}-VPCID'
+
+
+    
+        
+    
+    
+    
+    
+    
+
+    
+    
