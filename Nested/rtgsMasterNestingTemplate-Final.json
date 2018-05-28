@@ -1,0 +1,551 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Master template that includes nested templates",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Templates S3 Location"
+                    },
+                    "Parameters": [
+                        "s3Location"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Bastion Host Configuration"
+                    },
+                    "Parameters": [
+                        "BastionImageAMI",
+                        "BastionEC2SSHKeys"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Development Server Configuration"
+                    },
+                    "Parameters": [
+                        "DevelopmentImageAMI",
+                        "DevEC2SSHKeys"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Development Oracle Database"
+                    },
+                    "Parameters": [
+                        "DevDBName",
+                        "DevDBUsername",
+                        "DevDBPassword",
+                        "DevDBClass",
+                        "DevDBAllocatedStorage"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "QA Environment"
+                    },
+                    "Parameters": [
+                        "QAImageAMI",
+                        "QAEC2SSHKeys"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Production Server Configuration"
+                    },
+                    "Parameters": [
+                        "ProdImageAMI",
+                        "ProdEC2SSHKeys"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Production Oracle Database"
+                    },
+                    "Parameters": [
+                        "ProdDBName",
+                        "ProdDBUsername",
+                        "ProdDBPassword",
+                        "ProdDBClass",
+                        "ProdDBAllocatedStorage",
+                        "ProdDatabaseSnapshotId"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Windows Desktop Server"
+                    },
+                    "Parameters": [
+                        "WindowsImageId",
+                        "WindowsEC2SSHKeys"
+                    ]
+                }
+            ],
+            "ParameterLabels": {
+                "s3Location": {
+                    "default": "Template Bucket Location"
+                },
+                "BastionImageAMI": {
+                    "default": "Bastion Server AMI-ID"
+                },
+                "BastionEC2SSHKeys": {
+                    "default": "Bastion Server SSH Key"
+                },
+                "DevelopmentImageAMI": {
+                    "default": "Dev Server AMI-ID"
+                },
+                "DevEC2SSHKeys": {
+                    "default": "Dev Server SSH Key"
+                },
+                "QAImageAMI": {
+                    "default": "QA Server AMI-ID"
+                },
+                "QAEC2SSHKeys": {
+                    "default": "QA Server SSH Key"
+                },
+                "ProdImageAMI": {
+                    "default": "Prod Server AMI-ID"
+                },
+                "ProdEC2SSHKeys": {
+                    "default": "Prod Server SSH Key"
+                },
+                "WindowsImageId": {
+                    "default": "Windows Server AMI-ID"
+                },
+                "WindowsEC2SSHKeys": {
+                    "default": "Windows Server SSH Key"
+                },
+                "DevDBName": {
+                    "default": "Development RDS Name"
+                },
+                "DevDBClass": {
+                    "default": "Development RDS Instance Type"
+                },
+                "DevDBAllocatedStorage": {
+                    "default": "Development Database Drive Size"
+                },
+                "DevDatabaseSnapshotId": {
+                    "default": "Development Database Snapshot"
+                },
+                "ProdDBName": {
+                    "default": "Production RDS Name"
+                },
+                "ProdDBClass": {
+                    "default": "Production RDS Instance Type"
+                },
+                "ProdDBAllocatedStorage": {
+                    "default": "Production Database Drive Size"
+                },
+                "ProdDatabaseSnapshotId": {
+                    "default": "Production Database Snapshot"
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "s3Location": {
+            "Description": "Enter the name of the S3 Bucket where the templates were uploaded.",
+            "Type": "String",
+            "Default": "csraohio"
+        },
+        "WriteKeyPair": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "SSH PEM key name to attach to the Bastion host."
+        },
+        "WriteSubnets": {
+            "Type": "List<AWS::EC2::Subnet::Id>",
+            "Description": "The list of SubnetIds in your Virtual Private Cloud (VPC)",
+            "ConstraintDescription": "must be a list of at least two existing subnets associated with at least two different availability zones. They should be residing in the selected Virtual Private Cloud."
+        },
+        "WriteInstanceType": {
+            "Description": "WriteServer EC2 instance type",
+            "Type": "String",
+            "Default": "t2.small",
+            "AllowedValues": [
+                "t1.micro",
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m1.small",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m2.4xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.large",
+                "c3.xlarge",
+                "c3.2xlarge",
+                "c3.4xlarge",
+                "c3.8xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge",
+                "g2.2xlarge",
+                "g2.8xlarge",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "r3.4xlarge",
+                "r3.8xlarge",
+                "i2.xlarge",
+                "i2.2xlarge",
+                "i2.4xlarge",
+                "i2.8xlarge",
+                "d2.xlarge",
+                "d2.2xlarge",
+                "d2.4xlarge",
+                "d2.8xlarge",
+                "hi1.4xlarge",
+                "hs1.8xlarge",
+                "cr1.8xlarge",
+                "cc2.8xlarge",
+                "cg1.4xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "WriteSSHLocation": {
+            "Description": "The IP address range that can be used to SSH to the EC2 instances",
+            "Type": "String",
+            "MinLength": "9",
+            "MaxLength": "18",
+            "Default": "0.0.0.0/0",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+        },
+        "WebserverKeyPair": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "SSH PEM key name to attach to the Bastion host."
+        },
+        "WebServerSubnets": {
+            "Type": "List<AWS::EC2::Subnet::Id>",
+            "Description": "The list of SubnetIds in your Virtual Private Cloud (VPC)",
+            "ConstraintDescription": "must be a list of at least two existing subnets associated with at least two different availability zones. They should be residing in the selected Virtual Private Cloud."
+        },
+        "WebServerInstanceType": {
+            "Description": "WriteServer EC2 instance type",
+            "Type": "String",
+            "Default": "t2.small",
+            "AllowedValues": [
+                "t1.micro",
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m1.small",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m2.4xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.large",
+                "c3.xlarge",
+                "c3.2xlarge",
+                "c3.4xlarge",
+                "c3.8xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge",
+                "g2.2xlarge",
+                "g2.8xlarge",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "r3.4xlarge",
+                "r3.8xlarge",
+                "i2.xlarge",
+                "i2.2xlarge",
+                "i2.4xlarge",
+                "i2.8xlarge",
+                "d2.xlarge",
+                "d2.2xlarge",
+                "d2.4xlarge",
+                "d2.8xlarge",
+                "hi1.4xlarge",
+                "hs1.8xlarge",
+                "cr1.8xlarge",
+                "cc2.8xlarge",
+                "cg1.4xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "WebServerSSHLocation": {
+            "Description": "The IP address range that can be used to SSH to the EC2 instances",
+            "Type": "String",
+            "MinLength": "9",
+            "MaxLength": "18",
+            "Default": "0.0.0.0/0",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+        },
+        "DBName": {
+            "Default": "DevDB",
+            "Description": "The Development database name",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "64",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "DBUsername": {
+            "Default": "admin",
+            "NoEcho": "true",
+            "Description": "The database admin account username",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "16",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "DBPassword": {
+            "Default": "adminadmin",
+            "NoEcho": "true",
+            "Description": "The database admin account password",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "41",
+            "AllowedPattern": "[a-zA-Z0-9]*",
+            "ConstraintDescription": "must contain only alphanumeric characters."
+        },
+        "DBClass": {
+            "Default": "db.m3.medium",
+            "Description": "Database instance class",
+            "Type": "String",
+            "AllowedValues": [
+                "db.m4.large",
+                "db.m4.xlarge",
+                "db.m4.2xlarge",
+                "db.m4.4xlarge",
+                "db.m4.10xlarge",
+                "db.m4.16xlarge",
+                "db.m3.medium",
+                "db.m3.large",
+                "db.m3.xlarge",
+                "db.m3.2xlarge",
+                "db.r4.large",
+                "db.r4.xlarge",
+                "db.r4.2xlarge",
+                "db.r4.4xlarge",
+                "db.r4.8xlarge",
+                "db.r4.16xlarge",
+                "db.r3.large",
+                "db.r3.xlarge",
+                "db.r3.2xlarge",
+                "db.r3.4xlarge",
+                "db.r3.8xlarge",
+                "db.t2.micro",
+                "db.t2.small",
+                "db.t2.medium",
+                "db.t2.large",
+                "db.t2.xlarge",
+                "db.t2.2xlarge"
+            ],
+            "ConstraintDescription": "must select a valid database instance type."
+        },
+        "DBAllocatedStorage": {
+            "Default": "50",
+            "Description": "The size of the database (Gb)",
+            "Type": "Number",
+            "MinValue": "5",
+            "MaxValue": "1024",
+            "ConstraintDescription": "must be between 5 and 1024Gb."
+        },
+        "MultiAZDatabase": {
+            "Default": "false",
+            "Description": "Create a Multi-AZ MySQL Amazon RDS database instance",
+            "Type": "String",
+            "AllowedValues": [
+                "true",
+                "false"
+            ],
+            "ConstraintDescription": "must be either true or false."
+        }
+    },
+    "Resources": {
+        "VPCStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "VPC's.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "VPCBaseRange": "12.0",
+                    "VPCEndingRange": "0.0"
+                }
+            }
+        },
+        "RDSStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "VPCStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "rds.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "vpcs": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "DBName": {
+                        "Ref": "DevDBName"
+                    },
+                    "DBUser": {
+                        "Ref": "DevDBUsername"
+                    },
+                    "DBPassword": {
+                        "Ref": "DevDBPassword"
+                    },
+                    "DBClass": {
+                        "Ref": "DevDBClass"
+                    },
+                    "DBAllocatedStorage": {
+                        "Ref": "DevDBAllocatedStorage"
+                    },
+                    "MultiAZDatabase": {
+                        "Ref": "MultiAZDatabase"
+                    }
+                }
+            }
+        },
+        "WriteServerStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "RDSStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "writeserver.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "VPCStackName": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "RDSStackName": {
+                        "Fn::GetAtt": [
+                            "RDSStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "WriteKeyPair": {
+                        "Ref": "WriteKeyPair"
+                    },
+                    "WriteSubnets": {
+                        "Ref": "Subnets"
+                    }
+                },
+                "WriteInstanceType": {
+                    "Ref": "WriteInstanceType"
+                },
+                "WriteSSHLocation": {
+                    "Ref": "SSHLocation"
+                }
+            }
+        },
+        "WebServerStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "RDSStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "webserver.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "VPCStackName": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "RDSStackName": {
+                        "Fn::GetAtt": [
+                            "RDSStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "WebServerKeyPair": {
+                        "Ref": "WriteKeyPair"
+                    },
+                    "WebServerSubnets": {
+                        "Ref": "Subnets"
+                    }
+                },
+                "WebServerInstanceType": {
+                    "Ref": "WriteInstanceType"
+                },
+                "WebServerSSHLocation": {
+                    "Ref": "SSHLocation"
+                }
+            }
+        }
+    }
+}
