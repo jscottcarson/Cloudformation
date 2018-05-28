@@ -1,0 +1,518 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Master template that includes nested templates",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "S3 Information"
+                    },
+                    "Parameters": [
+                        "s3Location",
+                        "S3CodeBackupBucket",
+                        "S3MediaBucket"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Write Server Configuration"
+                    },
+                    "Parameters": [
+                        "WriteKeyPair",
+                        "WriteInstanceType",
+                        "WriteSSHLocation"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Web Server Configuration"
+                    },
+                    "Parameters": [
+                        "WebServerKeyPair",
+                        "WebServerInstanceType",
+                        "WebServerSSHLocation"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "RDS Database Configuration"
+                    },
+                    "Parameters": [
+                        "DBName",
+                        "DBUsername",
+                        "DBPassword",
+                        "DBClass",
+                        "DBAllocatedStorage",
+                        "MultiAZDatabase"
+                    ]
+                }
+            ],
+            "ParameterLabels": {
+                "s3Location": {
+                    "default": "Templates Bucket Location"
+                },
+                "WriteKeyPair": {
+                    "default": "Write Server SSH Key"
+                },
+                "WriteInstanceType": {
+                    "default": "Write Server Instance Type"
+                },
+                "WriteSSHLocation": {
+                    "default": "IP to allow SSH traffic from"
+                },
+                "WebServerKeyPair": {
+                    "default": "Web Server SSH Key"
+                },
+                "WebServerInstanceType": {
+                    "default": "Web Server Instance Type"
+                },
+                "WebServerSSHLocation": {
+                    "default": "IP to allow SSH traffic from"
+                },
+                "DBName": {
+                    "default": " RDS Database Name"
+                },
+                "DBClass": {
+                    "default": "RDS Instance Type"
+                },
+                "DBAllocatedStorage": {
+                    "default": "Database Drive Size"
+                },
+                "MultiAZDatabase": {
+                    "default": "Make RDS single-AZ or multi-AZ"
+                },
+                "S3MediaBucket": {
+                    "default": "S3 Media Bucket for CDN"
+                },
+                "S3CodeBackupBucket": {
+                    "default": "S3 Code Backup Bucket Name"
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "s3Location": {
+            "Description": "Enter the name of the S3 Bucket where the templates were uploaded.",
+            "Type": "String"
+        },
+        "WriteKeyPair": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "SSH PEM key name to attach to the Bastion host."
+        },
+        "WriteInstanceType": {
+            "Description": "WriteServer EC2 instance type",
+            "Type": "String",
+            "Default": "r3.large",
+            "AllowedValues": [
+                "t1.micro",
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m1.small",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m2.4xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.large",
+                "c3.xlarge",
+                "c3.2xlarge",
+                "c3.4xlarge",
+                "c3.8xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge",
+                "g2.2xlarge",
+                "g2.8xlarge",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "r3.4xlarge",
+                "r3.8xlarge",
+                "i2.xlarge",
+                "i2.2xlarge",
+                "i2.4xlarge",
+                "i2.8xlarge",
+                "d2.xlarge",
+                "d2.2xlarge",
+                "d2.4xlarge",
+                "d2.8xlarge",
+                "hi1.4xlarge",
+                "hs1.8xlarge",
+                "cr1.8xlarge",
+                "cc2.8xlarge",
+                "cg1.4xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "WriteSSHLocation": {
+            "Description": "The IP address range that can be used to SSH to the EC2 instances",
+            "Type": "String",
+            "MinLength": "9",
+            "MaxLength": "18",
+            "Default": "0.0.0.0/0",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+        },
+        "WebServerKeyPair": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "SSH PEM key name to attach to the Bastion host."
+        },
+        "WebServerInstanceType": {
+            "Description": "WriteServer EC2 instance type",
+            "Type": "String",
+            "Default": "t2.large",
+            "AllowedValues": [
+                "t1.micro",
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m1.small",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m2.4xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "m4.large",
+                "m4.xlarge",
+                "m4.2xlarge",
+                "m4.4xlarge",
+                "m4.10xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.large",
+                "c3.xlarge",
+                "c3.2xlarge",
+                "c3.4xlarge",
+                "c3.8xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge",
+                "g2.2xlarge",
+                "g2.8xlarge",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "r3.4xlarge",
+                "r3.8xlarge",
+                "i2.xlarge",
+                "i2.2xlarge",
+                "i2.4xlarge",
+                "i2.8xlarge",
+                "d2.xlarge",
+                "d2.2xlarge",
+                "d2.4xlarge",
+                "d2.8xlarge",
+                "hi1.4xlarge",
+                "hs1.8xlarge",
+                "cr1.8xlarge",
+                "cc2.8xlarge",
+                "cg1.4xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "WebServerSSHLocation": {
+            "Description": "The IP address range that can be used to SSH to the EC2 instances",
+            "Type": "String",
+            "MinLength": "9",
+            "MaxLength": "18",
+            "Default": "0.0.0.0/0",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+        },
+        "DBName": {
+            "Default": "rtgsdatabase",
+            "Description": "The Development database name",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "64",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "DBUsername": {
+            "Default": "admin",
+            "NoEcho": "true",
+            "Description": "The database admin account username",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "16",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "DBPassword": {
+            "Default": "Nn4rd58fNn4rd58f",
+            "NoEcho": "true",
+            "Description": "The database admin account password",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "41",
+            "AllowedPattern": "[a-zA-Z0-9]*",
+            "ConstraintDescription": "must contain only alphanumeric characters."
+        },
+        "DBClass": {
+            "Default": "db.m3.medium",
+            "Description": "Database instance class",
+            "Type": "String",
+            "AllowedValues": [
+                "db.m4.large",
+                "db.m4.xlarge",
+                "db.m4.2xlarge",
+                "db.m4.4xlarge",
+                "db.m4.10xlarge",
+                "db.m4.16xlarge",
+                "db.m3.medium",
+                "db.m3.large",
+                "db.m3.xlarge",
+                "db.m3.2xlarge",
+                "db.r4.large",
+                "db.r4.xlarge",
+                "db.r4.2xlarge",
+                "db.r4.4xlarge",
+                "db.r4.8xlarge",
+                "db.r4.16xlarge",
+                "db.r3.large",
+                "db.r3.xlarge",
+                "db.r3.2xlarge",
+                "db.r3.4xlarge",
+                "db.r3.8xlarge",
+                "db.t2.micro",
+                "db.t2.small",
+                "db.t2.medium",
+                "db.t2.large",
+                "db.t2.xlarge",
+                "db.t2.2xlarge"
+            ],
+            "ConstraintDescription": "must select a valid database instance type."
+        },
+        "DBAllocatedStorage": {
+            "Default": "30",
+            "Description": "The size of the database (Gb)",
+            "Type": "Number",
+            "MinValue": "5",
+            "MaxValue": "1024",
+            "ConstraintDescription": "must be between 5 and 1024Gb."
+        },
+        "MultiAZDatabase": {
+            "Default": "false",
+            "Description": "Create a Multi-AZ MySQL Amazon RDS database instance",
+            "Type": "String",
+            "AllowedValues": [
+                "true",
+                "false"
+            ],
+            "ConstraintDescription": "must be either true or false."
+        },
+        "S3CodeBackupBucket": {
+            "Type": "String",
+            "Description": "Enter the name of S3 Bucket that should be used for code sharing between servers",
+            "Default": "wp-code-backup"
+        },
+        "S3MediaBucket": {
+            "Type": "String",
+            "Description": "Enter the name of S3 Bucket that be used as the Media source for CloudFront",
+            "Default": "wp-media-bucket-for-cdn"
+        },
+        "WebserverImageId": {
+            "Type": "String"
+        },
+        "WriteserverImageId":{
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "VPCStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "readytogosurvival/VPC's.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "VPCBaseRange": "12.0",
+                    "VPCEndingRange": "0.0"
+                }
+            }
+        },
+        "RDSStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "VPCStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "readytogosurvival/rds.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "VPCStackName": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "DBName": {
+                        "Ref": "DBName"
+                    },
+                    "DBUser": {
+                        "Ref": "DBUsername"
+                    },
+                    "DBPassword": {
+                        "Ref": "DBPassword"
+                    },
+                    "DBClass": {
+                        "Ref": "DBClass"
+                    },
+                    "DBAllocatedStorage": {
+                        "Ref": "DBAllocatedStorage"
+                    },
+                    "MultiAZDatabase": {
+                        "Ref": "MultiAZDatabase"
+                    }
+                }
+            }
+        },
+        "WriteServerStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "RDSStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "readytogosurvival/writeserver-rtgsurl-post-launch.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "VPCStackName": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "RDSStackName": {
+                        "Fn::GetAtt": [
+                            "RDSStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "KeyName": {
+                        "Ref": "WriteKeyPair"
+                    },
+                    "InstanceType": {
+                        "Ref": "WriteInstanceType"
+                    },
+                    "SSHLocation": {
+                        "Ref": "WriteSSHLocation"
+                    },
+                    "S3CodeBackupBucket": {
+                        "Ref": "S3CodeBackupBucket"
+                    },
+                    "S3MediaBucket": {
+                        "Ref": "S3MediaBucket"
+                    },
+                    "WriteserverImageId":{
+                        "Ref": "WriteserverImageId"
+                    }
+                }
+            }
+        },
+        "WebServerStack": {
+            "Type": "AWS::CloudFormation::Stack",
+            "DependsOn": "RDSStack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "https://s3.amazonaws.com",
+                            {
+                                "Ref": "s3Location"
+                            },
+                            "readytogosurvival/webservers-rtgsurl.json"
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "VPCStackName": {
+                        "Fn::GetAtt": [
+                            "VPCStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "RDSStackName": {
+                        "Fn::GetAtt": [
+                            "RDSStack",
+                            "Outputs.StackName"
+                        ]
+                    },
+                    "KeyName": {
+                        "Ref": "WriteKeyPair"
+                    },
+                    "InstanceType": {
+                        "Ref": "WebServerInstanceType"
+                    },
+                    "SSHLocation": {
+                        "Ref": "WebServerSSHLocation"
+                    },
+                    "S3CodeBackupBucket": {
+                        "Ref": "S3CodeBackupBucket"
+                    },
+                    "S3MediaBucket": {
+                        "Ref": "S3MediaBucket"
+                    },
+                    "WebserverImageId":{
+                        "Ref": "WebserverImageId"
+                    }
+                }
+            }
+        }
+        
+      
+     
+    }
+}

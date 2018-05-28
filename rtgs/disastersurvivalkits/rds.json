@@ -1,0 +1,225 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Production RDS Database for Ready To Go Survival",
+    "Parameters": {
+        "VPCStackName" : {
+            "Type"  :   "String",
+            "Description"   :"Enter the name of the VPC Cloudformation stack"
+        },
+        "DBClass": {
+            "Description": "Database instance class",
+            "Type": "String",
+            "Default": "db.t2.small",
+            "AllowedValues": [
+                "db.t1.micro",
+                "db.m1.small",
+                "db.m1.medium",
+                "db.m1.large",
+                "db.m1.xlarge",
+                "db.m2.xlarge",
+                "db.m2.2xlarge",
+                "db.m2.4xlarge",
+                "db.m3.medium",
+                "db.m3.large",
+                "db.m3.xlarge",
+                "db.m3.2xlarge",
+                "db.m4.large",
+                "db.m4.xlarge",
+                "db.m4.2xlarge",
+                "db.m4.4xlarge",
+                "db.m4.10xlarge",
+                "db.r3.large",
+                "db.r3.xlarge",
+                "db.r3.2xlarge",
+                "db.r3.4xlarge",
+                "db.r3.8xlarge",
+                "db.m2.xlarge",
+                "db.m2.2xlarge",
+                "db.m2.4xlarge",
+                "db.cr1.8xlarge",
+                "db.t2.micro",
+                "db.t2.small",
+                "db.t2.medium",
+                "db.t2.large"
+            ],
+            "ConstraintDescription": "must select a valid database instance type."
+        },
+        "DBName": {
+            "Default": "wordpressdb",
+            "Description": "The WordPress database name",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "64",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "DBUser": {
+            "NoEcho": "true",
+            "Description": "The WordPress database admin account username",
+            "Type": "String",
+            "MinLength": "1",
+            "MaxLength": "16",
+            "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+            "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+        },
+        "DBPassword": {
+            "NoEcho": "true",
+            "Description": "The WordPress database admin account password",
+            "Type": "String",
+            "MinLength": "8",
+            "MaxLength": "41",
+            "AllowedPattern": "[a-zA-Z0-9]*",
+            "ConstraintDescription": "must contain only alphanumeric characters."
+        },
+        "MultiAZDatabase": {
+            "Default": "false",
+            "Description": "Create a Multi-AZ MySQL Amazon RDS database instance",
+            "Type": "String",
+            "AllowedValues": [
+                "true",
+                "false"
+            ],
+            "ConstraintDescription": "must be either true or false."
+        },
+        "DBAllocatedStorage": {
+            "Default": "5",
+            "Description": "The size of the database (Gb)",
+            "Type": "Number",
+            "MinValue": "5",
+            "MaxValue": "1024",
+            "ConstraintDescription": "must be between 5 and 1024Gb."
+        }
+    },
+    
+    "Resources": {
+        "RDSDBSubnetGroup":{
+            "Type":"AWS::RDS::DBSubnetGroup",
+            "Properties":{
+              "DBSubnetGroupDescription": "Subnets available for the RDS DB Instance",
+              "SubnetIds": [
+                {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "VPCStackName"}, "-PrivateSubnetA"]]}},
+                {"Fn::ImportValue" :  {"Fn::Join" : [ "", [{"Ref": "VPCStackName"}, "-PrivateSubnetB"]]}}
+              ]
+            }
+          },
+        "DBEC2SecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Open database for access",
+                "VpcId": {
+                     "Fn::ImportValue" : {"Fn::Sub": "${VPCStackName}-VPCID" } }
+            }
+        },
+        "Database": {
+            "Type": "AWS::RDS::DBInstance",
+            "Properties": {
+                "AllocatedStorage": {
+                    "Ref": "DBAllocatedStorage"
+                },
+                "AllowMajorVersionUpgrade": "false",
+                "AutoMinorVersionUpgrade": "true",
+                "BackupRetentionPeriod": "7",
+                "CopyTagsToSnapshot": "true",
+                "DBInstanceClass": {
+                    "Ref": "DBClass"
+                },
+                "DBSubnetGroupName" : {"Ref" : "RDSDBSubnetGroup"},
+                "DBName": {
+                    "Ref": "DBName"
+                },
+                "Engine": "MySQL",
+                "MasterUsername": {
+                    "Ref": "DBUser"
+                },
+                "MasterUserPassword": {
+                    "Ref": "DBPassword"
+                },
+                "MultiAZ": {
+                    "Ref": "MultiAZDatabase"
+                },
+                "PreferredBackupWindow": "09:00-09:30",
+                "PreferredMaintenanceWindow": "Sun:10:00-Sun:12:00",
+                "PubliclyAccessible": "false",
+                "StorageType": "gp2",
+                "VPCSecurityGroups": [
+                    {
+                        "Fn::GetAtt": [
+                            "DBEC2SecurityGroup",
+                            "GroupId"
+                        ]
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "RDS Instance SG"
+                    }
+                ]
+            }}
+        
+    },
+    "Outputs": {
+        "DBName": {
+            "Description": "Database Name",
+            "Value": {
+                "Ref": "DBName"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-DBName"
+                }
+            }
+        },
+        "DBUser": {
+            "Description": "Database User",
+            "Value": {
+                "Ref": "DBUser"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-DBUser"
+                }
+            }
+        },
+        "DBPassword": {
+            "Description": "Database Password",
+            "Value": {
+                "Ref": "DBPassword"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-DBPassword"
+                }
+            }
+        },
+        "DatabaseEndpoint": {
+            "Description": "Database Endpoint",
+            "Value": { "Fn::GetAtt": [ "Database", "Endpoint.Address" ] 
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-DBEndpoint"
+                }
+            }
+        },
+        "DatabaseSecurityGroup": {
+            "Description": "Database Security Group",
+            "Value": {"Ref": "DBEC2SecurityGroup"
+            },
+            "Export": {
+                "Name": {
+                    "Fn::Sub": "${AWS::StackName}-DBSecurityGroup"
+                }
+            }
+        },
+        "StackName": {
+			"Description": "The networking stack name",
+			"Value": {"Ref": "AWS::StackName"},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "RDSStack"
+				}
+			}
+		}
+    }
+}
